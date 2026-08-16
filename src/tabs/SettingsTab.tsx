@@ -49,6 +49,9 @@ export function SettingsTab() {
       setConnection(result.connection);
       setLogs(await window.api.getLogs());
       setDraftField("token", "");
+      if (result.connection.bitbucket === "disconnected" && result.connection.bitbucketMessage) {
+        setError(result.connection.bitbucketMessage);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -57,17 +60,22 @@ export function SettingsTab() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <div className="app-panel p-6">
-        <h2 className="text-lg font-semibold tracking-tight">Settings</h2>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          All fields are required. First launch starts empty. Token is stored in OS secure storage.
-        </p>
-        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+    <div className="app-panel overflow-hidden">
+      <div className="flex items-start justify-between gap-3 px-4 py-3">
+        <div>
+          <h2 className="text-sm font-semibold tracking-tight">Settings</h2>
+          <p className="text-xs text-[var(--muted)]">
+            All fields are required. First launch starts empty. Token is stored in OS secure storage.
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-4 border-t border-[var(--border)] px-4 py-4">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
           Internal use only. On Review, the PR diff is sent to Copilot Business through the local CLI.
         </div>
 
-        <div className="mt-6 grid gap-4">
+        <div className="grid gap-4">
           <Field
             label="Bitbucket URL"
             hint="You can paste a repo link such as https://bitbucket.org/workspace/repo/src/develop/"
@@ -118,8 +126,8 @@ export function SettingsTab() {
             label="Repository Access Token"
             hint={
               settings.hasToken
-                ? "A token is saved. Enter a new one only to replace it. Required: Repositories Read + Pull requests Read. Add Pull requests Write only if posting comments."
-                : "Create a Repository Access Token with Repositories: Read and Pull requests: Read. Add Pull requests: Write only if posting comments."
+                ? "A token is saved. Enter a new one only to replace it."
+                : "Create a new token if review fails. Existing tokens cannot gain scopes."
             }
           >
             <Input
@@ -131,6 +139,22 @@ export function SettingsTab() {
               placeholder={settings.hasToken ? "••••••••••••" : "Enter repository access token"}
             />
           </Field>
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-soft)] px-4 py-3 text-xs text-[var(--muted)]">
+            <div className="text-sm font-medium text-[var(--text)]">Token scopes required</div>
+            <ul className="mt-2 list-disc space-y-1 pl-4">
+              <li>
+                <span className="font-medium text-[var(--text)]">Repositories: Read</span> — fetch the PR
+                diff
+              </li>
+              <li>
+                <span className="font-medium text-[var(--text)]">Pull requests: Read</span> — list open PRs
+              </li>
+              <li>
+                <span className="font-medium text-[var(--text)]">Pull requests: Write</span> — only if posting
+                comments
+              </li>
+            </ul>
+          </div>
           <Field label="Prompt file">
             <div className="flex gap-2">
               <Input
@@ -201,7 +225,7 @@ export function SettingsTab() {
           </fieldset>
         </div>
 
-        <div className="mt-6 flex gap-3">
+        <div className="flex gap-3 pt-2">
           <Button variant="primary" disabled={busy} onClick={save}>
             Save settings
           </Button>

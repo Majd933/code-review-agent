@@ -4,19 +4,44 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import electron from "vite-plugin-electron/simple";
+import { startup } from "vite-plugin-electron";
 
-// vite-plugin-electron uses taskkill on Windows; a missing PID throws and kills `npm run dev`.
-const originalExecSync = childProcess.execSync;
-childProcess.execSync = ((command: string, options?: Parameters<typeof originalExecSync>[1]) => {
+function killElectronTree(pid: number): void {
   try {
-    return originalExecSync(command, options);
+    childProcess.execSync(`taskkill /pid ${pid} /T /F`, { stdio: "ignore" });
   } catch (error) {
-    if (typeof command === "string" && command.toLowerCase().includes("taskkill")) {
-      return Buffer.alloc(0);
-    }
+    const status = (error as { status?: number }).status;
+    if (status === 128 || status === 1) return;
     throw error;
   }
-}) as typeof originalExecSync;
+}
+
+startup.exit = async () => {
+  const electronApp = (process as NodeJS.Process & { electronApp?: childProcess.ChildProcess }).electronApp;
+  const pid = electronApp?.pid;
+  if (!electronApp || pid == null) return;
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    const timer = setTimeout(done, 2000);
+    electronApp.removeAllListeners();
+    electronApp.once("exit", () => {
+      clearTimeout(timer);
+      done();
+    });
+    try {
+      killElectronTree(pid);
+    } catch {
+      clearTimeout(timer);
+      done();
+    }
+  });
+  (process as NodeJS.Process & { electronApp?: childProcess.ChildProcess }).electronApp = undefined;
+};
 
 export default defineConfig({
   plugins: [

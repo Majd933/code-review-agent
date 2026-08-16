@@ -13,6 +13,7 @@ import {
 import {
   getCachedPullRequests,
   getDashboardStats,
+  loadPersistedReviewState,
   refreshPullRequests,
   reviewPullRequest,
 } from "./review";
@@ -184,6 +185,7 @@ function registerIpc(): void {
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   loadLogsFromDisk();
+  loadPersistedReviewState();
   registerIpc();
   createWindow();
   appendLog("info", "Application started");

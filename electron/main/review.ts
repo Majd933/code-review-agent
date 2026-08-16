@@ -12,6 +12,12 @@ import {
 import { parseCopilotOutput, runCopilotReview } from "./copilot";
 import { appendHistory } from "./history";
 import { appendLog } from "./logger";
+import {
+  loadReviewState,
+  prStatusKey,
+  saveReviewState,
+  type PersistedPrStatus,
+} from "./review-status";
 import type {
   DashboardStats,
   HistoryEntry,
@@ -20,15 +26,68 @@ import type {
   ReviewStatus,
 } from "./types";
 
-const reviewStatusByPr = new Map<number, { status: ReviewStatus; lastError?: string; commitHash?: string }>();
+const reviewStatusByPr = new Map<
+  string,
+  { status: ReviewStatus; lastError?: string; commitHash?: string; updatedAt: string }
+>();
 let cachedPrs: PullRequestItem[] = [];
 let lastListRefresh: string | null = null;
 let lastReviewAt: string | null = null;
 const running = new Set<number>();
+let statusLoaded = false;
 
-function mapPr(pr: BbPullRequest): PullRequestItem {
+function ensureStatusLoaded(): void {
+  if (statusLoaded) return;
+  const stored = loadReviewState();
+  lastListRefresh = stored.lastListRefresh;
+  lastReviewAt = stored.lastReviewAt;
+  for (const [key, value] of Object.entries(stored.byPr)) {
+    reviewStatusByPr.set(key, value);
+  }
+  statusLoaded = true;
+}
+
+function persistStatus(): void {
+  const byPr: Record<string, PersistedPrStatus> = {};
+  for (const [key, value] of reviewStatusByPr) {
+    if (value.status !== "reviewed" && value.status !== "failed") continue;
+    byPr[key] = {
+      status: value.status,
+      lastError: value.lastError,
+      commitHash: value.commitHash,
+      updatedAt: value.updatedAt,
+    };
+  }
+  saveReviewState({ lastListRefresh, lastReviewAt, byPr });
+}
+
+function setPrStatus(
+  workspace: string,
+  repository: string,
+  prId: number,
+  update: { status: ReviewStatus; lastError?: string; commitHash?: string },
+): void {
+  const key = prStatusKey(workspace, repository, prId);
+  if (update.status === "not_reviewed") {
+    reviewStatusByPr.delete(key);
+  } else {
+    reviewStatusByPr.set(key, {
+      status: update.status,
+      lastError: update.lastError,
+      commitHash: update.commitHash,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+  if (update.status !== "running") persistStatus();
+}
+
+function mapPr(pr: BbPullRequest, workspace: string, repository: string): PullRequestItem {
   const commitHash = pr.source?.commit?.hash ?? "";
-  const prev = reviewStatusByPr.get(pr.id);
+  const key = prStatusKey(workspace, repository, pr.id);
+  const prev = reviewStatusByPr.get(key);
+  const stale = Boolean(prev?.commitHash && commitHash && prev.commitHash !== commitHash);
+  const status: ReviewStatus =
+    !prev || stale || prev.status === "running" ? "not_reviewed" : prev.status;
   return {
     id: pr.id,
     title: pr.title,
@@ -38,12 +97,17 @@ function mapPr(pr: BbPullRequest): PullRequestItem {
     destinationBranch: pr.destination?.branch?.name ?? "",
     updatedOn: pr.updated_on,
     commitHash,
-    reviewStatus: prev?.status ?? "not_reviewed",
-    lastError: prev?.lastError,
+    reviewStatus: status,
+    lastError: stale || status === "not_reviewed" ? undefined : prev?.lastError,
   };
 }
 
+export function loadPersistedReviewState(): void {
+  ensureStatusLoaded();
+}
+
 export function getDashboardStats(): DashboardStats {
+  ensureStatusLoaded();
   return {
     openCount: cachedPrs.length,
     lastListRefresh,
@@ -52,10 +116,12 @@ export function getDashboardStats(): DashboardStats {
 }
 
 export function getCachedPullRequests(): PullRequestItem[] {
+  ensureStatusLoaded();
   return cachedPrs;
 }
 
 export async function refreshPullRequests(): Promise<PullRequestItem[]> {
+  ensureStatusLoaded();
   const auth = getAuthContext();
   appendLog("info", `Refreshing open pull requests for ${auth.workspace}/${auth.repository}`);
   const list = await listOpenPullRequests({
@@ -63,8 +129,9 @@ export async function refreshPullRequests(): Promise<PullRequestItem[]> {
     repository: auth.repository,
     token: auth.token,
   });
-  cachedPrs = list.map(mapPr);
+  cachedPrs = list.map((pr) => mapPr(pr, auth.workspace, auth.repository));
   lastListRefresh = new Date().toISOString();
+  persistStatus();
   appendLog("info", `Loaded ${cachedPrs.length} open pull requests`);
   return cachedPrs;
 }
@@ -98,6 +165,7 @@ export async function reviewPullRequest(prId: number): Promise<ReviewResultPaylo
   }
 
   const auth = getAuthContext();
+  ensureStatusLoaded();
   const pr =
     cachedPrs.find((p) => p.id === prId) ??
     (await refreshPullRequests()).find((p) => p.id === prId);
@@ -107,7 +175,10 @@ export async function reviewPullRequest(prId: number): Promise<ReviewResultPaylo
   }
 
   running.add(prId);
-  reviewStatusByPr.set(prId, { status: "running", commitHash: pr.commitHash });
+  setPrStatus(auth.workspace, auth.repository, prId, {
+    status: "running",
+    commitHash: pr.commitHash,
+  });
   cachedPrs = cachedPrs.map((p) =>
     p.id === prId ? { ...p, reviewStatus: "running", lastError: undefined } : p,
   );
@@ -161,7 +232,6 @@ ${
           parsed: parsed.parsed,
           summary: parsed.summary,
           findings: parsed.findings,
-          // raw intentionally omitted from disk JSON to reduce sensitive sprawl; full text is in .md summary section when unparsed
           rawIncludedInMarkdown: !parsed.parsed,
         },
         null,
@@ -208,7 +278,10 @@ ${
 
     const durationMs = Date.now() - started;
     lastReviewAt = new Date().toISOString();
-    reviewStatusByPr.set(prId, { status: "reviewed", commitHash: pr.commitHash });
+    setPrStatus(auth.workspace, auth.repository, prId, {
+      status: "reviewed",
+      commitHash: pr.commitHash,
+    });
     cachedPrs = cachedPrs.map((p) =>
       p.id === prId ? { ...p, reviewStatus: "reviewed", lastError: undefined } : p,
     );
@@ -234,7 +307,11 @@ ${
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    reviewStatusByPr.set(prId, { status: "failed", lastError: message, commitHash: pr.commitHash });
+    setPrStatus(auth.workspace, auth.repository, prId, {
+      status: "failed",
+      lastError: message,
+      commitHash: pr.commitHash,
+    });
     cachedPrs = cachedPrs.map((p) =>
       p.id === prId ? { ...p, reviewStatus: "failed", lastError: message } : p,
     );

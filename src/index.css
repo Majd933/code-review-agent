@@ -73,10 +73,23 @@ code {
   display: flex;
   align-items: center;
   height: env(titlebar-area-height, 40px);
+  min-height: 40px;
   padding-left: max(20px, env(titlebar-area-x, 20px));
-  width: env(titlebar-area-width, 100%);
+  padding-right: max(140px, calc(100% - env(titlebar-area-width, 100%) + 20px));
+  width: 100%;
   -webkit-app-region: drag;
   user-select: none;
+}
+
+.app-brand {
+  margin: 0;
+  font-family: "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.85rem;
+  line-height: 1.15;
+  font-weight: 300;
+  letter-spacing: 0.03em;
+  color: #1d4ed8;
+  font-variation-settings: "wght" 320;
 }
 
 button,

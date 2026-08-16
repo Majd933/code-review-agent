@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { COPILOT_TIMEOUT_MS } from "./types";
 import { appendLog } from "./logger";
@@ -104,11 +105,29 @@ export async function checkCopilotConnection(): Promise<void> {
 
 export async function runCopilotReview(prompt: string): Promise<string> {
   appendLog("info", "Starting Copilot CLI review");
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cra-prompt-"));
+  const promptFile = path.join(tempDir, "review-prompt.md");
+  fs.writeFileSync(promptFile, prompt, { encoding: "utf8", mode: 0o600 });
   try {
     const command = await resolveCopilot();
-    const result = await runCommand(command, ["-p", prompt, "-s", "--no-ask-user"], {
-      timeoutMs: COPILOT_TIMEOUT_MS,
-    });
+    const instruction =
+      `Read the file "${promptFile}" and follow its instructions exactly. ` +
+      `Respond with only the JSON object it requests. Do not edit files or run shell commands.`;
+    const result = await runCommand(
+      command,
+      [
+        "-C",
+        tempDir,
+        "-p",
+        instruction,
+        "-s",
+        "--no-ask-user",
+        "--add-dir",
+        tempDir,
+        "--allow-all-tools",
+      ],
+      { timeoutMs: COPILOT_TIMEOUT_MS },
+    );
     const output = (result.stdout || result.stderr || "").trim();
     if (!output) {
       throw new Error("Copilot returned empty output");
@@ -126,6 +145,8 @@ export async function runCopilotReview(prompt: string): Promise<string> {
       throw new Error("Copilot review timed out after 5 minutes");
     }
     throw new Error(`Copilot review failed: ${message}`);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
   }
 }
 

@@ -3,10 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "description": "Internal Bitbucket PR review agent using GitHub Copilot CLI",
+  "author": "Internal",
   "main": "dist-electron/index.js",
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.node.json --noEmit && vite build",
+    "dist": "npm run build && electron-builder --win",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit"
   },
@@ -25,10 +27,50 @@
     "@types/react-dom": "^19.1.5",
     "@vitejs/plugin-react": "^4.5.0",
     "electron": "^36.3.1",
+    "electron-builder": "^26.15.3",
     "tailwindcss": "^4.1.7",
     "typescript": "^5.8.3",
     "vite": "^6.3.5",
     "vite-plugin-electron": "^0.29.0",
     "vite-plugin-electron-renderer": "^0.14.6"
+  },
+  "build": {
+    "appId": "internal.code-review-agent",
+    "productName": "Code Review Agent",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "shortcutName": "Code Review Agent"
+    },
+    "portable": {
+      "artifactName": "CodeReviewAgent-portable.exe"
+    },
+    "publish": []
   }
 }

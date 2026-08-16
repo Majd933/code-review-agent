@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { LayoutDashboard, History, ScrollText, Settings } from "lucide-react";
 import { ConnectionBadges } from "@/components/ConnectionBadges";
-import { settingsComplete, useAppStore } from "@/store/app-store";
+import { useAppStore } from "@/store/app-store";
 import { DashboardTab } from "@/tabs/DashboardTab";
 import { HistoryTab } from "@/tabs/HistoryTab";
 import { LogsTab } from "@/tabs/LogsTab";
@@ -29,7 +29,6 @@ export default function App() {
   const setLogs = useAppStore((s) => s.setLogs);
   const busy = useAppStore((s) => s.busy);
   const setBusy = useAppStore((s) => s.setBusy);
-  const settings = useAppStore((s) => s.settings);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,7 +50,22 @@ export default function App() {
 
         setBusy(true);
         const conn = await window.api.checkConnection();
-        if (!cancelled) setConnection(conn);
+        if (cancelled) return;
+        setConnection(conn);
+
+        if (conn.bitbucket === "connected") {
+          try {
+            const refreshed = await window.api.refreshPullRequests();
+            if (cancelled) return;
+            setPrs(refreshed.prs);
+            setStats(refreshed.stats);
+          } catch (err) {
+            if (!cancelled) {
+              setError(err instanceof Error ? err.message : String(err));
+            }
+          }
+        }
+        if (!cancelled) setLogs(await window.api.getLogs());
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -88,11 +102,23 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="titlebar">
-        <span className="text-lg font-semibold tracking-tight">Code Review Agent</span>
+      <div className="titlebar" aria-hidden="true" />
+
+      <div className="flex items-center justify-between gap-4 px-5 pt-2 pb-1">
+        <h1 className="app-brand no-drag">Code Review Agent</h1>
+        <div className="no-drag">
+          <ConnectionBadges
+            bitbucket={connection.bitbucket}
+            copilot={connection.copilot}
+            bitbucketMessage={connection.bitbucketMessage}
+            copilotMessage={connection.copilotMessage}
+            onCheck={recheck}
+            checking={busy}
+          />
+        </div>
       </div>
 
-      <header className="flex items-center justify-between gap-4 px-5 pt-5 pb-4">
+      <header className="px-5 pt-8 pb-5">
         <nav
           className="inline-flex w-fit gap-1 rounded-full bg-white p-1 shadow-sm ring-1 ring-[var(--border)]"
           role="tablist"
@@ -121,21 +147,6 @@ export default function App() {
             );
           })}
         </nav>
-        <div className="no-drag flex min-w-0 items-center gap-3">
-          {settingsComplete(settings) ? (
-            <span className="hidden max-w-[200px] truncate text-xs text-[var(--muted)] lg:inline">
-              {settings.workspace}/{settings.repository}
-            </span>
-          ) : null}
-          <ConnectionBadges
-            bitbucket={connection.bitbucket}
-            copilot={connection.copilot}
-            bitbucketMessage={connection.bitbucketMessage}
-            copilotMessage={connection.copilotMessage}
-            onCheck={recheck}
-            checking={busy}
-          />
-        </div>
       </header>
 
       <main className="flex-1 overflow-auto px-5 pb-5">

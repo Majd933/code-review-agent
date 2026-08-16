@@ -95,10 +95,9 @@ function formatBitbucketError(status: number, text: string): string {
 }
 
 export async function checkBitbucketConnection(auth: BitbucketAuth): Promise<void> {
-  await bbFetch(
-    auth,
-    `/repositories/${encodeURIComponent(auth.workspace)}/${encodeURIComponent(auth.repository)}/pullrequests?state=OPEN&pagelen=1`,
-  );
+  const repoPath = `/repositories/${encodeURIComponent(auth.workspace)}/${encodeURIComponent(auth.repository)}`;
+  await bbFetch(auth, `${repoPath}/pullrequests?state=OPEN&pagelen=1`);
+  await bbFetch(auth, repoPath);
 }
 
 export async function listOpenPullRequests(auth: BitbucketAuth): Promise<BbPullRequest[]> {
