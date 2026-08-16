@@ -1,8 +1,25 @@
-import type { ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ComponentType, type ReactNode, type SVGProps } from "react";
+import {
+  Building2,
+  FileText,
+  FolderGit2,
+  FolderOpen,
+  Globe,
+  HardDrive,
+  Info,
+  KeyRound,
+  MessageSquareText,
+  PenLine,
+  RotateCcw,
+  Save,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAppStore } from "@/store/app-store";
 import type { WriteMode } from "../../electron/main/types";
+import { cn } from "@/lib/utils";
+
+type IconType = ComponentType<SVGProps<SVGSVGElement>>;
 
 export function SettingsTab() {
   const draft = useAppStore((s) => s.draft);
@@ -11,10 +28,12 @@ export function SettingsTab() {
   const hydrateSettings = useAppStore((s) => s.hydrateSettings);
   const resetDraftFromSettings = useAppStore((s) => s.resetDraftFromSettings);
   const setConnection = useAppStore((s) => s.setConnection);
-  const setBusy = useAppStore((s) => s.setBusy);
+  const setConnecting = useAppStore((s) => s.setConnecting);
   const setError = useAppStore((s) => s.setError);
   const setLogs = useAppStore((s) => s.setLogs);
-  const busy = useAppStore((s) => s.busy);
+  const connecting = useAppStore((s) => s.connecting);
+  const reviewing = useAppStore((s) => s.reviewing);
+  const settingsLocked = connecting || reviewing;
 
   async function save() {
     if (
@@ -33,7 +52,7 @@ export function SettingsTab() {
       return;
     }
 
-    setBusy(true);
+    setConnecting(true);
     setError(null);
     try {
       const result = await window.api.saveSettings({
@@ -55,31 +74,15 @@ export function SettingsTab() {
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setBusy(false);
+      setConnecting(false);
     }
   }
 
   return (
     <div className="app-panel overflow-hidden">
-      <div className="flex items-start justify-between gap-3 px-4 py-3">
-        <div>
-          <h2 className="text-sm font-semibold tracking-tight">Settings</h2>
-          <p className="text-xs text-[var(--muted)]">
-            All fields are required. First launch starts empty. Token is stored in OS secure storage.
-          </p>
-        </div>
-      </div>
-
-      <div className="space-y-4 border-t border-[var(--border)] px-4 py-4">
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
-          Internal use only. On Review, the PR diff is sent to Copilot Business through the local CLI.
-        </div>
-
-        <div className="grid gap-4">
-          <Field
-            label="Bitbucket URL"
-            hint="You can paste a repo link such as https://bitbucket.org/workspace/repo/src/develop/"
-          >
+      <div className="form-stack px-4 py-4">
+        <div className="form-stack">
+          <Field label="Bitbucket URL" icon={Globe}>
             <Input
               value={draft.bitbucketUrl}
               onChange={(e) => {
@@ -104,8 +107,8 @@ export function SettingsTab() {
               spellCheck={false}
             />
           </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Workspace">
+          <div className="form-grid-2">
+            <Field label="Workspace" icon={Building2}>
               <Input
                 value={draft.workspace}
                 onChange={(e) => setDraftField("workspace", e.target.value)}
@@ -113,7 +116,7 @@ export function SettingsTab() {
                 spellCheck={false}
               />
             </Field>
-            <Field label="Repository">
+            <Field label="Repository" icon={FolderGit2}>
               <Input
                 value={draft.repository}
                 onChange={(e) => setDraftField("repository", e.target.value)}
@@ -123,7 +126,9 @@ export function SettingsTab() {
             </Field>
           </div>
           <Field
+            icon={KeyRound}
             label="Repository Access Token"
+            labelExtra={<TokenScopesInfo />}
             hint={
               settings.hasToken
                 ? "A token is saved. Enter a new one only to replace it."
@@ -139,24 +144,8 @@ export function SettingsTab() {
               placeholder={settings.hasToken ? "••••••••••••" : "Enter repository access token"}
             />
           </Field>
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-soft)] px-4 py-3 text-xs text-[var(--muted)]">
-            <div className="text-sm font-medium text-[var(--text)]">Token scopes required</div>
-            <ul className="mt-2 list-disc space-y-1 pl-4">
-              <li>
-                <span className="font-medium text-[var(--text)]">Repositories: Read</span> — fetch the PR
-                diff
-              </li>
-              <li>
-                <span className="font-medium text-[var(--text)]">Pull requests: Read</span> — list open PRs
-              </li>
-              <li>
-                <span className="font-medium text-[var(--text)]">Pull requests: Write</span> — only if posting
-                comments
-              </li>
-            </ul>
-          </div>
-          <Field label="Prompt file">
-            <div className="flex gap-2">
+          <Field label="Prompt file" icon={FileText}>
+            <div className="flex gap-2.5">
               <Input
                 value={draft.promptPath}
                 onChange={(e) => setDraftField("promptPath", e.target.value)}
@@ -170,12 +159,13 @@ export function SettingsTab() {
                   if (path) setDraftField("promptPath", path);
                 }}
               >
+                <FolderOpen className="h-4 w-4" aria-hidden="true" />
                 Browse
               </Button>
             </div>
           </Field>
-          <Field label="Results directory">
-            <div className="flex gap-2">
+          <Field label="Results directory" icon={FolderOpen}>
+            <div className="flex gap-2.5">
               <Input
                 value={draft.resultsDir}
                 onChange={(e) => setDraftField("resultsDir", e.target.value)}
@@ -189,50 +179,84 @@ export function SettingsTab() {
                   if (path) setDraftField("resultsDir", path);
                 }}
               >
+                <FolderOpen className="h-4 w-4" aria-hidden="true" />
                 Browse
               </Button>
             </div>
           </Field>
-          <fieldset className="space-y-1.5">
-            <legend className="text-sm font-medium">Write mode</legend>
-            <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Write mode">
+          <Field label="Write mode" icon={PenLine}>
+            <div className="form-grid-2" role="radiogroup" aria-label="Write mode">
               {(
                 [
-                  ["bitbucket", "Write review to Bitbucket PR", "Posts the summary and inline comments."],
-                  ["local", "Save locally only", "Keeps the review on this machine."],
-                ] as const
-              ).map(([value, label, hint]) => {
-                const selected = draft.writeMode === value;
+                  {
+                    value: "bitbucket" as const,
+                    label: "Write review to Bitbucket PR",
+                    hint: "Posts the summary and inline comments.",
+                    icon: MessageSquareText,
+                  },
+                  {
+                    value: "local" as const,
+                    label: "Save locally only",
+                    hint: "Keeps the review on this machine.",
+                    icon: HardDrive,
+                  },
+                ]
+              ).map((option) => {
+                const selected = draft.writeMode === option.value;
+                const Icon = option.icon;
                 return (
                   <button
-                    key={value}
+                    key={option.value}
                     type="button"
                     role="radio"
                     aria-checked={selected}
-                    onClick={() => setDraftField("writeMode", value)}
-                    className={`cursor-pointer rounded-2xl border px-4 py-3 text-left transition ${
+                    onClick={() => setDraftField("writeMode", option.value)}
+                    className={cn(
+                      "flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3.5 text-left transition",
                       selected
                         ? "border-[var(--accent)] bg-[var(--accent-soft)] shadow-sm"
-                        : "border-[var(--border)] bg-white hover:border-[var(--accent)]/50"
-                    }`}
+                        : "border-[var(--border)] bg-white hover:border-[var(--accent)]/50",
+                    )}
                   >
-                    <div className="text-sm font-medium">{label}</div>
-                    <div className="mt-1 text-xs text-[var(--muted)]">{hint}</div>
+                    <span
+                      className={cn(
+                        "grid h-10 w-10 shrink-0 place-items-center rounded-xl",
+                        selected
+                          ? "bg-white text-[var(--accent)] shadow-[var(--shadow-sm)]"
+                          : "bg-[var(--bg-soft)] text-[var(--muted)]",
+                      )}
+                      aria-hidden="true"
+                    >
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium">{option.label}</span>
+                      <span className="mt-1.5 block text-xs leading-relaxed text-[var(--muted)]">
+                        {option.hint}
+                      </span>
+                    </span>
                   </button>
                 );
               })}
             </div>
-          </fieldset>
+          </Field>
         </div>
 
-        <div className="flex gap-3 pt-2">
-          <Button variant="primary" disabled={busy} onClick={save}>
+        <div className="flex gap-3 border-t border-[var(--border)] pt-5">
+          <Button variant="primary" disabled={settingsLocked} onClick={save}>
+            <Save className="h-4 w-4" aria-hidden="true" />
             Save settings
           </Button>
-          <Button disabled={busy} onClick={resetDraftFromSettings}>
+          <Button variant="secondary" disabled={settingsLocked} onClick={resetDraftFromSettings}>
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
             Cancel
           </Button>
         </div>
+
+        <p className="text-[11px] leading-relaxed text-[#6B7280]">
+          Internal use only. On Review, the PR diff is sent to Copilot Business through the local CLI.
+          Token is stored in OS secure storage.
+        </p>
       </div>
     </div>
   );
@@ -240,18 +264,101 @@ export function SettingsTab() {
 
 function Field({
   label,
+  icon: Icon,
+  labelExtra,
   hint,
   children,
 }: {
   label: string;
+  icon?: IconType;
+  labelExtra?: ReactNode;
   hint?: string;
   children: ReactNode;
 }) {
   return (
-    <label className="block space-y-1.5">
-      <span className="text-sm font-medium">{label}</span>
+    <div className="form-field">
+      <div className="inline-flex items-center gap-1.5">
+        {Icon ? <Icon className="h-3.5 w-3.5 text-[var(--muted)]" aria-hidden="true" /> : null}
+        <span>{label}</span>
+        {labelExtra}
+      </div>
       {children}
-      {hint ? <span className="block text-xs text-[var(--muted)]">{hint}</span> : null}
-    </label>
+      {hint ? <span className="form-hint">{hint}</span> : null}
+    </div>
+  );
+}
+
+function TokenScopesInfo() {
+  const tipId = useId();
+  const rootRef = useRef<HTMLSpanElement>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: PointerEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <span
+      ref={rootRef}
+      className="relative inline-flex"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        className={cn(
+          "inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded-full text-[var(--muted)]",
+          "hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]",
+          "focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--ring)]",
+        )}
+        aria-label="Token scopes required"
+        aria-expanded={open}
+        aria-controls={tipId}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setOpen((value) => !value);
+        }}
+      >
+        <Info className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
+      {open ? (
+        <span
+          id={tipId}
+          role="tooltip"
+          className="absolute left-0 top-[calc(100%+8px)] z-30 w-72 rounded-xl border border-[var(--border)] bg-white p-3 text-left shadow-[var(--shadow-md)]"
+          onClick={(event) => event.preventDefault()}
+        >
+          <div className="text-xs font-semibold text-[var(--text)]">Token scopes required</div>
+          <ul className="mt-2 list-disc space-y-1.5 pl-4 text-xs leading-relaxed text-[var(--muted)]">
+            <li>
+              <span className="font-medium text-[var(--text)]">Repositories: Read</span> — fetch the PR
+              diff
+            </li>
+            <li>
+              <span className="font-medium text-[var(--text)]">Pull requests: Read</span> — list open PRs
+            </li>
+            <li>
+              <span className="font-medium text-[var(--text)]">Pull requests: Write</span> — only if posting
+              comments
+            </li>
+          </ul>
+        </span>
+      ) : null}
+    </span>
   );
 }

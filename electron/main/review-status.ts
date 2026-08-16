@@ -14,12 +14,14 @@ interface StoredReviewState {
   lastListRefresh: string | null;
   lastReviewAt: string | null;
   byPr: Record<string, PersistedPrStatus>;
+  knownPrIds: Record<string, number[]>;
 }
 
 const EMPTY: StoredReviewState = {
   lastListRefresh: null,
   lastReviewAt: null,
   byPr: {},
+  knownPrIds: {},
 };
 
 const MAX_ENTRIES = 500;
@@ -52,10 +54,21 @@ export function loadReviewState(): StoredReviewState {
       lastListRefresh: raw.lastListRefresh ?? null,
       lastReviewAt: raw.lastReviewAt ?? null,
       byPr,
+      knownPrIds: sanitizeKnownPrIds(raw.knownPrIds),
     };
   } catch {
-    return { ...EMPTY, byPr: {} };
+    return { ...EMPTY, byPr: {}, knownPrIds: {} };
   }
+}
+
+function sanitizeKnownPrIds(raw: unknown): Record<string, number[]> {
+  if (!raw || typeof raw !== "object") return {};
+  const out: Record<string, number[]> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!Array.isArray(value)) continue;
+    out[key] = value.filter((id): id is number => Number.isInteger(id) && id > 0);
+  }
+  return out;
 }
 
 export function saveReviewState(state: StoredReviewState): void {
@@ -71,6 +84,7 @@ export function saveReviewState(state: StoredReviewState): void {
         lastListRefresh: state.lastListRefresh,
         lastReviewAt: state.lastReviewAt,
         byPr: Object.fromEntries(entries),
+        knownPrIds: state.knownPrIds ?? {},
       } satisfies StoredReviewState,
       null,
       2,

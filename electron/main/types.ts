@@ -4,6 +4,10 @@ export type ConnectionStatus = "checking" | "connected" | "disconnected";
 
 export type ReviewStatus = "not_reviewed" | "reviewed" | "running" | "failed";
 
+export const DEFAULT_AUTO_REFRESH_MINUTES = 5;
+export const MIN_AUTO_REFRESH_MINUTES = 1;
+export const MAX_AUTO_REFRESH_MINUTES = 180;
+
 export interface AppSettings {
   bitbucketUrl: string;
   workspace: string;
@@ -12,6 +16,9 @@ export interface AppSettings {
   resultsDir: string;
   writeMode: WriteMode | "";
   hasToken: boolean;
+  autoRefresh: boolean;
+  autoRefreshMinutes: number;
+  autoReviewNew: boolean;
 }
 
 export interface SettingsInput {
@@ -22,6 +29,12 @@ export interface SettingsInput {
   promptPath: string;
   resultsDir: string;
   writeMode: WriteMode;
+}
+
+export interface AutomationSettings {
+  autoRefresh: boolean;
+  autoRefreshMinutes: number;
+  autoReviewNew: boolean;
 }
 
 export interface ConnectionState {
@@ -50,10 +63,18 @@ export interface DashboardStats {
   lastReviewAt: string | null;
 }
 
+export interface RefreshPullRequestsResult {
+  prs: PullRequestItem[];
+  stats: DashboardStats;
+  newPrIds: number[];
+}
+
 export interface HistoryEntry {
   id: string;
   prId: number;
-  prTitle: string;
+  sourceBranch: string;
+  destinationBranch: string;
+  author: string;
   reviewedAt: string;
   durationMs: number;
   result: "success" | "failed";

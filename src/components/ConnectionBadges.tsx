@@ -1,5 +1,4 @@
 import type { ConnectionStatus } from "../../electron/main/types";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { RefreshCw } from "lucide-react";
 
@@ -14,16 +13,12 @@ function Badge({
 }) {
   const tone =
     status === "connected"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+      ? "border-emerald-200/80 bg-[var(--success-soft)] text-emerald-800"
       : status === "checking"
-        ? "border-amber-200 bg-amber-50 text-amber-800"
-        : "border-rose-200 bg-rose-50 text-rose-800";
+        ? "border-amber-200/80 bg-[var(--warn-soft)] text-amber-800"
+        : "border-rose-200/80 bg-[var(--danger-soft)] text-rose-800";
   const dot =
-    status === "connected"
-      ? "bg-[var(--success)]"
-      : status === "checking"
-        ? "bg-[var(--warn)]"
-        : "bg-[var(--danger)]";
+    status === "connected" ? "online" : status === "checking" ? "checking" : "offline";
   const text =
     status === "connected" ? "Connected" : status === "checking" ? "Checking..." : "Disconnected";
   const description = message || `${label} ${text}`;
@@ -31,15 +26,42 @@ function Badge({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 rounded-full border px-3 py-1.5",
+        "flex items-center gap-2 rounded-full border px-3 py-1.5 shadow-[var(--shadow-sm)] transition",
         tone,
       )}
       title={description}
       aria-label={description}
     >
-      <span className={cn("h-2 w-2 shrink-0 rounded-full", dot)} aria-hidden="true" />
-      <span className="text-xs opacity-80">{label}</span>
-      <span className="text-xs font-semibold">{text}</span>
+      <span className={cn("status-dot", dot)} aria-hidden="true" />
+      <span className="text-xs font-medium opacity-80">{label}</span>
+      <span className="text-xs font-semibold tracking-tight">{text}</span>
+    </div>
+  );
+}
+
+function ActivityChip({
+  label,
+  tone,
+}: {
+  label: string;
+  tone: "connecting" | "reviewing";
+}) {
+  const styles =
+    tone === "reviewing"
+      ? "border-blue-200/80 bg-blue-50 text-blue-800"
+      : "border-amber-200/80 bg-[var(--warn-soft)] text-amber-800";
+
+  return (
+    <div
+      className={cn(
+        "flex h-8 items-center gap-2 rounded-full border px-3 text-xs font-semibold tracking-tight shadow-[var(--shadow-sm)]",
+        styles,
+      )}
+      aria-live="polite"
+      aria-label={label}
+    >
+      <RefreshCw className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+      {label}
     </div>
   );
 }
@@ -49,30 +71,25 @@ export function ConnectionBadges({
   copilot,
   bitbucketMessage,
   copilotMessage,
-  onCheck,
-  checking,
+  connecting,
+  reviewing,
 }: {
   bitbucket: ConnectionStatus;
   copilot: ConnectionStatus;
   bitbucketMessage?: string;
   copilotMessage?: string;
-  onCheck: () => void;
-  checking: boolean;
+  connecting: boolean;
+  reviewing: boolean;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
+      {connecting ? (
+        <ActivityChip label="Connecting..." tone="connecting" />
+      ) : reviewing ? (
+        <ActivityChip label="Reviewing..." tone="reviewing" />
+      ) : null}
       <Badge label="Bitbucket" status={bitbucket} message={bitbucketMessage} />
       <Badge label="Copilot" status={copilot} message={copilotMessage} />
-      <Button
-        variant="ghost"
-        onClick={onCheck}
-        disabled={checking}
-        className="h-8 px-3 text-xs"
-        aria-label="Recheck Bitbucket and Copilot connections"
-      >
-        <RefreshCw className={`h-3.5 w-3.5 ${checking ? "animate-spin" : ""}`} aria-hidden="true" />
-        Recheck
-      </Button>
     </div>
   );
 }

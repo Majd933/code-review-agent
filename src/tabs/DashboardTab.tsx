@@ -1,22 +1,77 @@
+import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { formatDate } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { cn, formatDate } from "@/lib/utils";
+import {
+  clampAutoRefreshMinutes,
+  maybeAutoReviewNew,
+  refreshPullRequestsAction,
+  reviewPullRequestAction,
+  saveAutomationAction,
+} from "@/lib/review-actions";
 import { settingsComplete, useAppStore } from "@/store/app-store";
 import { Clock3, GitPullRequest, RefreshCw } from "lucide-react";
+import {
+  MAX_AUTO_REFRESH_MINUTES,
+  MIN_AUTO_REFRESH_MINUTES,
+} from "../../electron/main/types";
 
 function StatusPill({ status }: { status: string }) {
   const map: Record<string, string> = {
-    not_reviewed: "bg-slate-100 text-slate-600",
-    reviewed: "bg-emerald-50 text-emerald-700",
-    running: "bg-amber-50 text-amber-700",
-    failed: "bg-rose-50 text-rose-700",
+    not_reviewed: "bg-slate-100 text-slate-700 ring-1 ring-slate-200/80",
+    reviewed: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80",
+    running: "bg-amber-50 text-amber-700 ring-1 ring-amber-200/80",
+    failed: "bg-rose-50 text-rose-700 ring-1 ring-rose-200/80",
   };
   const label = status.replace("_", " ");
   return (
     <span
-      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${map[status] ?? map.not_reviewed}`}
+      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize tracking-tight ${map[status] ?? map.not_reviewed}`}
     >
       {label}
     </span>
+  );
+}
+
+function ToggleSwitch({
+  checked,
+  onChange,
+  label,
+  description,
+  trailing,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  label: string;
+  description: string;
+  trailing?: ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
+        onClick={() => onChange(!checked)}
+        className={cn(
+          "relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors",
+          checked ? "bg-[var(--accent)]" : "bg-slate-300",
+        )}
+      >
+        <span
+          className={cn(
+            "pointer-events-none absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform",
+            checked && "translate-x-5",
+          )}
+        />
+      </button>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-semibold tracking-tight text-[#111827]">{label}</div>
+        <div className="mt-1 text-xs leading-relaxed text-[#6B7280]">{description}</div>
+      </div>
+      {trailing}
+    </div>
   );
 }
 
@@ -26,63 +81,43 @@ export function DashboardTab() {
   const prs = useAppStore((s) => s.prs);
   const stats = useAppStore((s) => s.stats);
   const busy = useAppStore((s) => s.busy);
-  const setBusy = useAppStore((s) => s.setBusy);
-  const setPrs = useAppStore((s) => s.setPrs);
-  const setStats = useAppStore((s) => s.setStats);
+  const reviewing = useAppStore((s) => s.reviewing);
   const setError = useAppStore((s) => s.setError);
-  const setLogs = useAppStore((s) => s.setLogs);
+  const [minutesDraft, setMinutesDraft] = useState(String(settings.autoRefreshMinutes));
+
+  useEffect(() => {
+    setMinutesDraft(String(settings.autoRefreshMinutes));
+  }, [settings.autoRefreshMinutes]);
 
   const ready =
     settingsComplete(settings) &&
     connection.bitbucket === "connected" &&
     connection.copilot === "connected";
 
+  const actionLocked = busy || reviewing;
+
   async function refresh() {
-    if (!settingsComplete(settings) || connection.bitbucket !== "connected") {
-      setError("Bitbucket must be connected. Complete Settings first.");
-      return;
-    }
-    setBusy(true);
-    setError(null);
+    const result = await refreshPullRequestsAction();
+    if (result) await maybeAutoReviewNew(result.newPrIds);
+  }
+
+  async function updateAutomation(patch: {
+    autoRefresh?: boolean;
+    autoRefreshMinutes?: number;
+    autoReviewNew?: boolean;
+  }) {
     try {
-      const result = await window.api.refreshPullRequests();
-      setPrs(result.prs);
-      setStats(result.stats);
-      setLogs(await window.api.getLogs());
+      await saveAutomationAction(patch);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
     }
   }
 
-  async function review(prId: number) {
-    if (!ready) {
-      setError("Bitbucket and Copilot must both be connected before review.");
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    setPrs(prs.map((p) => (p.id === prId ? { ...p, reviewStatus: "running", lastError: undefined } : p)));
-    try {
-      const result = await window.api.reviewPullRequest(prId);
-      const [nextPrs, nextStats, nextHistory, nextLogs] = await Promise.all([
-        window.api.listPullRequests(),
-        window.api.getDashboardStats(),
-        window.api.getHistory(),
-        window.api.getLogs(),
-      ]);
-      setPrs(nextPrs);
-      setStats(nextStats);
-      useAppStore.getState().setHistory(nextHistory);
-      setLogs(nextLogs);
-      if (!result.success) setError(result.message);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      const nextPrs = await window.api.listPullRequests();
-      setPrs(nextPrs);
-    } finally {
-      setBusy(false);
+  function commitMinutes() {
+    const minutes = clampAutoRefreshMinutes(Number(minutesDraft));
+    setMinutesDraft(String(minutes));
+    if (minutes !== settings.autoRefreshMinutes) {
+      void updateAutomation({ autoRefreshMinutes: minutes });
     }
   }
 
@@ -104,13 +139,16 @@ export function DashboardTab() {
         {cards.map((card) => {
           const Icon = card.icon;
           return (
-            <div key={card.label} className="app-panel flex items-start gap-3 px-4 py-4">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)]">
+            <div key={card.label} className="app-panel metric-card flex items-start gap-3 px-4 py-4">
+              <div className="relative z-10 grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
                 <Icon className="h-4 w-4" aria-hidden="true" />
               </div>
-              <div className="min-w-0">
+              <div className="relative z-10 min-w-0">
                 <div className="text-xs font-medium text-[var(--muted)]">{card.label}</div>
-                <div className="mt-1 truncate text-lg font-semibold tracking-tight tabular-nums" title={card.value}>
+                <div
+                  className="mt-1 truncate text-lg font-semibold tracking-tight tabular-nums"
+                  title={card.value}
+                >
                   {card.value}
                 </div>
               </div>
@@ -119,34 +157,68 @@ export function DashboardTab() {
         })}
       </div>
 
+      <div className="app-panel space-y-3 px-4 py-3.5">
+        <ToggleSwitch
+          checked={settings.autoRefresh}
+          onChange={(next) => void updateAutomation({ autoRefresh: next })}
+          label="Auto refresh"
+          description="Reload the open PR list on a timer."
+          trailing={
+            settings.autoRefresh ? (
+              <label className="flex shrink-0 items-center gap-2 text-xs font-medium text-[var(--muted)]">
+                <Input
+                  type="number"
+                  min={MIN_AUTO_REFRESH_MINUTES}
+                  max={MAX_AUTO_REFRESH_MINUTES}
+                  step={1}
+                  value={minutesDraft}
+                  onChange={(event) => setMinutesDraft(event.target.value)}
+                  onBlur={commitMinutes}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.currentTarget.blur();
+                    }
+                  }}
+                  aria-label="Auto refresh interval in minutes"
+                  className="h-9 min-h-9 w-16 px-2 text-center tabular-nums"
+                />
+                min
+              </label>
+            ) : null
+          }
+        />
+        <ToggleSwitch
+          checked={settings.autoReviewNew}
+          onChange={(next) => void updateAutomation({ autoReviewNew: next })}
+          label="Auto-review new PRs"
+          description="Review newly opened pull requests as soon as they appear. Existing PRs stay manual."
+        />
+      </div>
+
       <div className="app-panel overflow-hidden">
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-3.5">
           <div>
             <h2 className="text-sm font-semibold tracking-tight">Pull requests</h2>
             <p className="text-xs text-[var(--muted)]">
               {bitbucketReady ? `${prs.length} open in the current list` : "Not connected"}
             </p>
           </div>
-          <Button
-            onClick={refresh}
-            disabled={busy || !bitbucketReady}
-            aria-busy={busy}
-          >
+          <Button onClick={() => void refresh()} disabled={actionLocked || !bitbucketReady} aria-busy={busy}>
             <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} aria-hidden="true" />
             Refresh
           </Button>
         </div>
         <div className="overflow-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">
-              <tr className="border-y border-[var(--border)]">
-                <th className="px-4 py-2.5">ID</th>
-                <th className="px-4 py-2.5">Title</th>
-                <th className="px-4 py-2.5">Author</th>
-                <th className="px-4 py-2.5">Branch</th>
-                <th className="px-4 py-2.5">Updated</th>
-                <th className="px-4 py-2.5">Review</th>
-                <th className="px-4 py-2.5">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Author</th>
+                <th>Source</th>
+                <th>Target</th>
+                <th>Updated</th>
+                <th>Review</th>
+                <th>
                   <span className="sr-only">Actions</span>
                 </th>
               </tr>
@@ -154,25 +226,26 @@ export function DashboardTab() {
             <tbody>
               {prs.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-[var(--muted)]">
+                  <td colSpan={7} className="!py-14 text-center text-[var(--muted)]">
                     {emptyMessage}
                   </td>
                 </tr>
               ) : (
                 prs.map((pr) => (
-                  <tr key={pr.id} className="border-b border-[var(--border)]/70 last:border-0 hover:bg-slate-50">
-                    <td className="px-4 py-3 font-mono text-xs text-[var(--accent)]">#{pr.id}</td>
-                    <td className="max-w-[280px] truncate px-4 py-3 font-medium" title={pr.title}>
-                      {pr.title}
+                  <tr key={pr.id}>
+                    <td className="font-mono text-xs font-medium text-[var(--accent)]">#{pr.id}</td>
+                    <td className="text-[var(--muted)]">{pr.author}</td>
+                    <td className="max-w-[180px] truncate font-mono text-xs text-[var(--text)]" title={pr.sourceBranch}>
+                      {pr.sourceBranch || "—"}
                     </td>
-                    <td className="px-4 py-3 text-[var(--muted)]">{pr.author}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-[var(--muted)]">
-                      {pr.sourceBranch} → {pr.destinationBranch}
+                    <td
+                      className="max-w-[180px] truncate font-mono text-xs text-[var(--muted)]"
+                      title={pr.destinationBranch}
+                    >
+                      {pr.destinationBranch || "—"}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-[var(--muted)]">
-                      {formatDate(pr.updatedOn)}
-                    </td>
-                    <td className="px-4 py-3">
+                    <td className="whitespace-nowrap text-[var(--muted)]">{formatDate(pr.updatedOn)}</td>
+                    <td>
                       <StatusPill status={pr.reviewStatus} />
                       {pr.lastError ? (
                         <div
@@ -183,11 +256,11 @@ export function DashboardTab() {
                         </div>
                       ) : null}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="text-right">
                       <Button
                         variant="primary"
-                        disabled={!ready || busy || pr.reviewStatus === "running"}
-                        onClick={() => review(pr.id)}
+                        disabled={!ready || actionLocked || pr.reviewStatus === "running"}
+                        onClick={() => void reviewPullRequestAction(pr.id)}
                       >
                         Review
                       </Button>

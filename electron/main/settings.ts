@@ -1,7 +1,12 @@
 import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
-import type { AppSettings, SettingsInput, WriteMode } from "./types";
+import type { AppSettings, AutomationSettings, SettingsInput, WriteMode } from "./types";
+import {
+  DEFAULT_AUTO_REFRESH_MINUTES,
+  MAX_AUTO_REFRESH_MINUTES,
+  MIN_AUTO_REFRESH_MINUTES,
+} from "./types";
 import { clearToken, hasStoredToken, loadToken, saveToken } from "./secrets";
 
 interface StoredSettings {
@@ -11,6 +16,9 @@ interface StoredSettings {
   promptPath: string;
   resultsDir: string;
   writeMode: WriteMode | "";
+  autoRefresh: boolean;
+  autoRefreshMinutes: number;
+  autoReviewNew: boolean;
 }
 
 const EMPTY: StoredSettings = {
@@ -20,7 +28,15 @@ const EMPTY: StoredSettings = {
   promptPath: "",
   resultsDir: "",
   writeMode: "",
+  autoRefresh: false,
+  autoRefreshMinutes: DEFAULT_AUTO_REFRESH_MINUTES,
+  autoReviewNew: false,
 };
+
+export function clampAutoRefreshMinutes(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_AUTO_REFRESH_MINUTES;
+  return Math.min(MAX_AUTO_REFRESH_MINUTES, Math.max(MIN_AUTO_REFRESH_MINUTES, Math.round(value)));
+}
 
 export function parseBitbucketRepoUrl(input: string): {
   bitbucketUrl: string;
@@ -61,6 +77,11 @@ function readStored(): StoredSettings {
       promptPath: raw.promptPath ?? "",
       resultsDir: raw.resultsDir ?? "",
       writeMode: raw.writeMode === "bitbucket" || raw.writeMode === "local" ? raw.writeMode : "",
+      autoRefresh: Boolean(raw.autoRefresh),
+      autoRefreshMinutes: clampAutoRefreshMinutes(
+        typeof raw.autoRefreshMinutes === "number" ? raw.autoRefreshMinutes : DEFAULT_AUTO_REFRESH_MINUTES,
+      ),
+      autoReviewNew: Boolean(raw.autoReviewNew),
     };
   } catch {
     return { ...EMPTY };
@@ -122,6 +143,7 @@ export function saveSettings(input: SettingsInput): AppSettings {
     saveToken(token);
   }
 
+  const prev = readStored();
   writeStored({
     bitbucketUrl,
     workspace,
@@ -129,8 +151,22 @@ export function saveSettings(input: SettingsInput): AppSettings {
     promptPath,
     resultsDir,
     writeMode,
+    autoRefresh: prev.autoRefresh,
+    autoRefreshMinutes: prev.autoRefreshMinutes,
+    autoReviewNew: prev.autoReviewNew,
   });
 
+  return getPublicSettings();
+}
+
+export function saveAutomation(input: AutomationSettings): AppSettings {
+  const stored = readStored();
+  writeStored({
+    ...stored,
+    autoRefresh: Boolean(input.autoRefresh),
+    autoRefreshMinutes: clampAutoRefreshMinutes(input.autoRefreshMinutes),
+    autoReviewNew: Boolean(input.autoReviewNew),
+  });
   return getPublicSettings();
 }
 

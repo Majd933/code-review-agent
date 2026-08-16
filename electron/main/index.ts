@@ -7,6 +7,7 @@ import { appendLog, clearLogs, getLogs, loadLogsFromDisk } from "./logger";
 import {
   getAuthContext,
   getPublicSettings,
+  saveAutomation,
   saveSettings,
   settingsAreComplete,
 } from "./settings";
@@ -14,10 +15,11 @@ import {
   getCachedPullRequests,
   getDashboardStats,
   loadPersistedReviewState,
+  markExistingPullRequestsKnown,
   refreshPullRequests,
   reviewPullRequest,
 } from "./review";
-import type { ConnectionState, SettingsInput } from "./types";
+import type { AutomationSettings, ConnectionState, SettingsInput } from "./types";
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -28,7 +30,7 @@ function createWindow(): void {
     minWidth: 1024,
     minHeight: 700,
     title: "Code Review Agent",
-    backgroundColor: "#fafbfc",
+    backgroundColor: "#f4f6f9",
     autoHideMenuBar: true,
     show: true,
     titleBarStyle: "hidden",
@@ -44,8 +46,8 @@ function createWindow(): void {
 
   if (process.platform === "win32") {
     windowOptions.titleBarOverlay = {
-      color: "#fafbfc",
-      symbolColor: "#122033",
+      color: "#f4f6f9",
+      symbolColor: "#0f172a",
       height: 40,
     };
   }
@@ -132,6 +134,19 @@ function registerIpc(): void {
     return { settings: saved, connection };
   });
 
+  ipcMain.handle("save_automation", (_evt, input: AutomationSettings) => {
+    const prev = getPublicSettings();
+    const saved = saveAutomation(input);
+    if (saved.autoReviewNew && !prev.autoReviewNew) {
+      markExistingPullRequestsKnown();
+    }
+    appendLog(
+      "info",
+      `Automation updated: auto refresh ${saved.autoRefresh ? `every ${saved.autoRefreshMinutes} min` : "off"}, auto-review new PRs ${saved.autoReviewNew ? "on" : "off"}`,
+    );
+    return saved;
+  });
+
   ipcMain.handle("check_connection", async () => runConnectionCheck());
 
   ipcMain.handle("list_pull_requests", () => getCachedPullRequests());
@@ -141,8 +156,8 @@ function registerIpc(): void {
     if (!settingsAreComplete()) {
       throw new Error("Settings are incomplete");
     }
-    const prs = await refreshPullRequests();
-    return { prs, stats: getDashboardStats() };
+    const { prs, newPrIds } = await refreshPullRequests();
+    return { prs, stats: getDashboardStats(), newPrIds };
   });
 
   ipcMain.handle("review_pull_request", async (_evt, prId: number) => {

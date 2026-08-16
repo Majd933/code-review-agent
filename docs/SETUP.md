@@ -53,6 +53,7 @@ Copilot CLI must still be installed and signed in on that machine. Settings (tok
    - Write mode: post to Bitbucket PR, or save locally only
 3. Click **Save settings**. The app checks **Bitbucket** (PR list + repository read) and **Copilot**. A missing token scope is shown in the UI.
 4. Use **Dashboard** → **Refresh**, then **Review** on a PR.
+5. Optional Dashboard automation: **Auto refresh** (interval in minutes) and **Auto-review new PRs** (only PRs that appear after you turn it on).
 
 ## Notes
 

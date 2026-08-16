@@ -47,7 +47,7 @@ After save, the renderer only sees `hasToken: true`. It never gets the token bac
 ## Review flow
 
 1. **Settings** — workspace, repository, token, prompt file, results directory, write mode (`local` or `bitbucket`).
-2. **Dashboard → Refresh** — `GET .../pullrequests`. Needs **Pull requests: Read**.
+2. **Dashboard → Refresh** — `GET .../pullrequests`. Needs **Pull requests: Read**. Optional **Auto refresh** (minutes) and **Auto-review new PRs** (only PRs that appear after the current list is known).
 3. **Review** — fetch the **diff** (Bitbucket requires **Repositories: Read**), write the prompt to a temp file, run `copilot` with a short `-p` that reads that file (`-s --no-ask-user`).
 4. Write `result/<repo>/PR-<id>-<timestamp>.md` and `.json`.
 5. If write mode is Bitbucket, post comments. If Local, stop at the files.
@@ -71,7 +71,7 @@ Settings shows this checklist. After Save, a missing-scope error is shown in the
 - 200KB diff limit after ignore filters (lockfiles, images, build output). Logs redact secrets.
 - Copilot is resolved from PATH or `%LOCALAPPDATA%\GitHub CLI\copilot\copilot.exe`.
 - Output stays in the chosen results directory.
-- Review status (`reviewed` / `failed`) is stored in `userData/review-status.json`, keyed by workspace/repo/PR. It survives restart. A new source commit resets the PR to not reviewed.
+- Review status (`reviewed` / `failed`) is stored in `userData/review-status.json`, keyed by workspace/repo/PR. It survives restart. A new source commit resets the PR to not reviewed. Known PR ids in the same file power auto-review of newly opened PRs.
 - Copilot prompt is written to a temp directory (not passed as a huge `-p` argument), then deleted.
 - Windows installer: `npm run dist` writes NSIS setup and a portable exe to `release/`.
 

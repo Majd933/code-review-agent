@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { LayoutDashboard, History, ScrollText, Settings } from "lucide-react";
 import { ConnectionBadges } from "@/components/ConnectionBadges";
-import { useAppStore } from "@/store/app-store";
+import { clampAutoRefreshMinutes, maybeAutoReviewNew, refreshPullRequestsAction } from "@/lib/review-actions";
+import { settingsComplete, useAppStore } from "@/store/app-store";
 import { DashboardTab } from "@/tabs/DashboardTab";
 import { HistoryTab } from "@/tabs/HistoryTab";
 import { LogsTab } from "@/tabs/LogsTab";
@@ -27,8 +28,9 @@ export default function App() {
   const setStats = useAppStore((s) => s.setStats);
   const setHistory = useAppStore((s) => s.setHistory);
   const setLogs = useAppStore((s) => s.setLogs);
-  const busy = useAppStore((s) => s.busy);
-  const setBusy = useAppStore((s) => s.setBusy);
+  const connecting = useAppStore((s) => s.connecting);
+  const setConnecting = useAppStore((s) => s.setConnecting);
+  const reviewing = useAppStore((s) => s.reviewing);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,17 +50,19 @@ export default function App() {
         setPrs(prs);
         setStats(stats);
 
-        setBusy(true);
+        setConnecting(true);
         const conn = await window.api.checkConnection();
         if (cancelled) return;
         setConnection(conn);
 
+        let bootNewPrIds: number[] = [];
         if (conn.bitbucket === "connected") {
           try {
             const refreshed = await window.api.refreshPullRequests();
             if (cancelled) return;
             setPrs(refreshed.prs);
             setStats(refreshed.stats);
+            bootNewPrIds = refreshed.newPrIds;
           } catch (err) {
             if (!cancelled) {
               setError(err instanceof Error ? err.message : String(err));
@@ -66,10 +70,12 @@ export default function App() {
           }
         }
         if (!cancelled) setLogs(await window.api.getLogs());
+        if (!cancelled) setConnecting(false);
+        if (!cancelled) await maybeAutoReviewNew(bootNewPrIds);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err));
       } finally {
-        if (!cancelled) setBusy(false);
+        if (!cancelled) setConnecting(false);
       }
     })();
     return () => {
@@ -77,7 +83,7 @@ export default function App() {
     };
   }, [
     hydrateSettings,
-    setBusy,
+    setConnecting,
     setConnection,
     setError,
     setHistory,
@@ -86,74 +92,74 @@ export default function App() {
     setStats,
   ]);
 
-  async function recheck() {
-    setBusy(true);
-    setError(null);
-    try {
-      const conn = await window.api.checkConnection();
-      setConnection(conn);
-      setLogs(await window.api.getLogs());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }
+  const settings = useAppStore((s) => s.settings);
+
+  useEffect(() => {
+    if (!settings.autoRefresh) return;
+    if (!settingsComplete(settings) || connection.bitbucket !== "connected") return;
+    const minutes = clampAutoRefreshMinutes(settings.autoRefreshMinutes);
+    const timer = window.setInterval(() => {
+      void (async () => {
+        const result = await refreshPullRequestsAction({ background: true });
+        if (result) await maybeAutoReviewNew(result.newPrIds);
+      })();
+    }, minutes * 60_000);
+    return () => window.clearInterval(timer);
+  }, [
+    settings.autoRefresh,
+    settings.autoRefreshMinutes,
+    settings.bitbucketUrl,
+    settings.workspace,
+    settings.repository,
+    settings.hasToken,
+    settings.writeMode,
+    connection.bitbucket,
+  ]);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="app-shell">
       <div className="titlebar" aria-hidden="true" />
 
-      <div className="flex items-center justify-between gap-4 px-5 pt-2 pb-1">
-        <h1 className="app-brand no-drag">Code Review Agent</h1>
-        <div className="no-drag">
-          <ConnectionBadges
-            bitbucket={connection.bitbucket}
-            copilot={connection.copilot}
-            bitbucketMessage={connection.bitbucketMessage}
-            copilotMessage={connection.copilotMessage}
-            onCheck={recheck}
-            checking={busy}
-          />
+      <div className="app-topbar no-drag">
+        <div className="flex min-w-0 items-center gap-5">
+          <h1 className="app-brand shrink-0">
+            Code Review <span>Agent</span>
+          </h1>
+          <nav className="app-nav" role="tablist" aria-label="Main">
+            {tabs.map((item) => {
+              const selected = tab === item.id;
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setTab(item.id)}
+                  className={cn("app-nav-item", selected && "is-active")}
+                >
+                  <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  {item.label}
+                </button>
+              );
+            })}
+          </nav>
         </div>
+        <ConnectionBadges
+          bitbucket={connection.bitbucket}
+          copilot={connection.copilot}
+          bitbucketMessage={connection.bitbucketMessage}
+          copilotMessage={connection.copilotMessage}
+          connecting={connecting}
+          reviewing={reviewing}
+        />
       </div>
 
-      <header className="px-5 pt-8 pb-5">
-        <nav
-          className="inline-flex w-fit gap-1 rounded-full bg-white p-1 shadow-sm ring-1 ring-[var(--border)]"
-          role="tablist"
-          aria-label="Main"
-        >
-          {tabs.map((item) => {
-            const selected = tab === item.id;
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                onClick={() => setTab(item.id)}
-                className={cn(
-                  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition",
-                  selected
-                    ? "bg-[var(--accent)] text-white shadow-sm"
-                    : "text-[var(--muted)] hover:bg-black/5 hover:text-[var(--text)]",
-                )}
-              >
-                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
-      </header>
-
-      <main className="flex-1 overflow-auto px-5 pb-5">
+      <main className="flex min-h-0 flex-1 flex-col overflow-hidden px-5 pb-5 pt-5">
         {error ? (
           <div
             role="alert"
-            className="mb-4 rounded-[var(--radius)] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-[var(--danger)]"
+            className="mb-4 shrink-0 rounded-[var(--radius)] border border-rose-200 bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger)]"
           >
             <div className="flex items-start justify-between gap-3">
               <span className="min-w-0 break-words">{error}</span>
@@ -167,10 +173,17 @@ export default function App() {
             </div>
           </div>
         ) : null}
-        {tab === "dashboard" ? <DashboardTab /> : null}
-        {tab === "history" ? <HistoryTab /> : null}
-        {tab === "logs" ? <LogsTab /> : null}
-        {tab === "settings" ? <SettingsTab /> : null}
+        <div
+          className={cn(
+            "min-h-0 flex-1",
+            tab === "logs" ? "overflow-hidden" : "overflow-auto",
+          )}
+        >
+          {tab === "dashboard" ? <DashboardTab /> : null}
+          {tab === "history" ? <HistoryTab /> : null}
+          {tab === "logs" ? <LogsTab /> : null}
+          {tab === "settings" ? <SettingsTab /> : null}
+        </div>
       </main>
     </div>
   );

@@ -35,12 +35,20 @@ let lastListRefresh: string | null = null;
 let lastReviewAt: string | null = null;
 const running = new Set<number>();
 let statusLoaded = false;
+let knownPrIdsByRepo: Record<string, number[]> = {};
+
+const MAX_KNOWN_IDS = 500;
+
+function repoPrKey(workspace: string, repository: string): string {
+  return `${workspace}/${repository}`;
+}
 
 function ensureStatusLoaded(): void {
   if (statusLoaded) return;
   const stored = loadReviewState();
   lastListRefresh = stored.lastListRefresh;
   lastReviewAt = stored.lastReviewAt;
+  knownPrIdsByRepo = { ...(stored.knownPrIds ?? {}) };
   for (const [key, value] of Object.entries(stored.byPr)) {
     reviewStatusByPr.set(key, value);
   }
@@ -58,7 +66,7 @@ function persistStatus(): void {
       updatedAt: value.updatedAt,
     };
   }
-  saveReviewState({ lastListRefresh, lastReviewAt, byPr });
+  saveReviewState({ lastListRefresh, lastReviewAt, byPr, knownPrIds: knownPrIdsByRepo });
 }
 
 function setPrStatus(
@@ -120,7 +128,35 @@ export function getCachedPullRequests(): PullRequestItem[] {
   return cachedPrs;
 }
 
-export async function refreshPullRequests(): Promise<PullRequestItem[]> {
+function rememberPrIds(workspace: string, repository: string, ids: number[], forceSeed = false): number[] {
+  const key = repoPrKey(workspace, repository);
+  const had = Object.prototype.hasOwnProperty.call(knownPrIdsByRepo, key);
+  const prev = knownPrIdsByRepo[key] ?? [];
+  const prevSet = new Set(prev);
+  const newcomers = had && !forceSeed ? ids.filter((id) => !prevSet.has(id)) : [];
+  const currentSet = new Set(ids);
+  const older = prev.filter((id) => !currentSet.has(id));
+  knownPrIdsByRepo[key] = [...ids, ...older].slice(0, MAX_KNOWN_IDS);
+  return newcomers;
+}
+
+export function markExistingPullRequestsKnown(): void {
+  ensureStatusLoaded();
+  try {
+    const auth = getAuthContext();
+    rememberPrIds(
+      auth.workspace,
+      auth.repository,
+      cachedPrs.map((pr) => pr.id),
+      true,
+    );
+    persistStatus();
+  } catch {
+    /* settings incomplete; next refresh will seed this repo */
+  }
+}
+
+export async function refreshPullRequests(): Promise<{ prs: PullRequestItem[]; newPrIds: number[] }> {
   ensureStatusLoaded();
   const auth = getAuthContext();
   appendLog("info", `Refreshing open pull requests for ${auth.workspace}/${auth.repository}`);
@@ -131,9 +167,14 @@ export async function refreshPullRequests(): Promise<PullRequestItem[]> {
   });
   cachedPrs = list.map((pr) => mapPr(pr, auth.workspace, auth.repository));
   lastListRefresh = new Date().toISOString();
+  const newPrIds = rememberPrIds(
+    auth.workspace,
+    auth.repository,
+    cachedPrs.map((pr) => pr.id),
+  );
   persistStatus();
   appendLog("info", `Loaded ${cachedPrs.length} open pull requests`);
-  return cachedPrs;
+  return { prs: cachedPrs, newPrIds };
 }
 
 function buildPrompt(template: string, pr: PullRequestItem, diff: string): string {
@@ -168,7 +209,7 @@ export async function reviewPullRequest(prId: number): Promise<ReviewResultPaylo
   ensureStatusLoaded();
   const pr =
     cachedPrs.find((p) => p.id === prId) ??
-    (await refreshPullRequests()).find((p) => p.id === prId);
+    (await refreshPullRequests()).prs.find((p) => p.id === prId);
 
   if (!pr) {
     throw new Error(`Pull request #${prId} not found in open list`);
@@ -289,7 +330,9 @@ ${
     const historyEntry: HistoryEntry = {
       id: randomUUID(),
       prId,
-      prTitle: pr.title,
+      sourceBranch: pr.sourceBranch,
+      destinationBranch: pr.destinationBranch,
+      author: pr.author,
       reviewedAt: lastReviewAt,
       durationMs,
       result: "success",
@@ -319,7 +362,9 @@ ${
     appendHistory({
       id: randomUUID(),
       prId,
-      prTitle: pr.title,
+      sourceBranch: pr.sourceBranch,
+      destinationBranch: pr.destinationBranch,
+      author: pr.author,
       reviewedAt: new Date().toISOString(),
       durationMs: Date.now() - started,
       result: "failed",
