@@ -1,0 +1,133 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #fafbfc;
+  --bg-elevated: #ffffff;
+  --bg-soft: #f3f5f8;
+  --border: #dce3ee;
+  --text: #122033;
+  --muted: #5a6b80;
+  --accent: #2563eb;
+  --accent-soft: rgba(37, 99, 235, 0.12);
+  --on-accent: #ffffff;
+  --success: #0f9f6e;
+  --danger: #e11d48;
+  --warn: #c2410c;
+  --ring: #2563eb;
+  --shadow: 0 1px 2px rgba(18, 32, 51, 0.04), 0 10px 28px rgba(18, 32, 51, 0.06);
+  --font: "Segoe UI Variable", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+  --radius: 14px;
+  --space: 8px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.font-mono,
+code {
+  font-family: var(--font-mono);
+}
+
+.app-panel {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  height: env(titlebar-area-height, 40px);
+  padding-left: max(20px, env(titlebar-area-x, 20px));
+  width: env(titlebar-area-width, 100%);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+button,
+a,
+input,
+select,
+textarea,
+[role="tab"],
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c5d0de;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  body {
+    background: var(--bg);
+  }
+}

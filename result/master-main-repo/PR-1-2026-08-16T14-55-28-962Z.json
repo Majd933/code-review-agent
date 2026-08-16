@@ -1,0 +1,27 @@
+{
+  "prId": 1,
+  "title": "Fist develpe branch",
+  "parsed": true,
+  "summary": "**Risk: HIGH** - PR adds a Java file with critical syntax errors that will not compile. The `main.java` file has malformed method signature, misspelled method name, and missing closing brace. The code is non-functional and must be fixed before merge.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "main.java",
+      "line": 3,
+      "message": "Invalid method signature: `public static main` is missing return type and parameters. Should be `public static void main(String[] args)`"
+    },
+    {
+      "severity": "high",
+      "file": "main.java",
+      "line": 4,
+      "message": "Typo in method name: `printlin` should be `println`. This will cause a compilation error."
+    },
+    {
+      "severity": "high",
+      "file": "main.java",
+      "line": 4,
+      "message": "Missing closing brace for the main method body. Expected `}` after the print statement."
+    }
+  ],
+  "rawIncludedInMarkdown": false
+}

@@ -1,0 +1,17 @@
+---
+description: Local UI tokens and security constraints for this desktop app
+globs: src/**/*.{tsx,css}
+alwaysApply: false
+---
+
+# UI
+
+Use tokens in `src/index.css`. Do not add CDNs, Google Fonts, analytics, remote images, or new UI kits.
+
+- Light theme. Surfaces: `--bg`, `--bg-elevated`, `--bg-soft`, `--border`, `--shadow`
+- Text: `--text` / `--muted` (keep contrast; never gray-on-gray)
+- Status: `--success` `--danger` `--warn` plus a text label (never color alone)
+- Font: system stack only (`--font`, `--font-mono`)
+- Controls: `Button` / `Input`; visible `:focus-visible`; `cursor-pointer` on clickable elements
+- Token field stays `type="password"`; never render the saved token
+- English UI; dense internal-tool layout (header, tabs, tables, settings form)
