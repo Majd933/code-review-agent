@@ -19,7 +19,14 @@ import {
   refreshPullRequests,
   reviewPullRequest,
 } from "./review";
-import type { AutomationSettings, ConnectionState, SettingsInput } from "./types";
+import type {
+  AutomationSettings,
+  ConnectionCheckResult,
+  ConnectionState,
+  RefreshPullRequestsResult,
+  SaveSettingsResult,
+  SettingsInput,
+} from "./types";
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -124,21 +131,40 @@ async function runConnectionCheck(): Promise<ConnectionState> {
   return state;
 }
 
+async function refreshAfterBitbucketConnect(
+  connection: ConnectionState,
+): Promise<RefreshPullRequestsResult | null> {
+  if (connection.bitbucket !== "connected") return null;
+  try {
+    const { prs, newPrIds } = await refreshPullRequests();
+    return { prs, stats: getDashboardStats(), newPrIds };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    appendLog("error", `Pull request refresh after Bitbucket connect failed: ${message}`);
+    return null;
+  }
+}
+
 function registerIpc(): void {
   ipcMain.handle("get_settings", () => getPublicSettings());
 
-  ipcMain.handle("save_settings", async (_evt, input: SettingsInput) => {
+  ipcMain.handle("save_settings", async (_evt, input: SettingsInput): Promise<SaveSettingsResult> => {
     const saved = saveSettings(input);
     appendLog("info", "Settings saved");
     const connection = await runConnectionCheck();
-    return { settings: saved, connection };
+    const refreshed = await refreshAfterBitbucketConnect(connection);
+    return {
+      settings: saved,
+      connection,
+      ...(refreshed ?? {}),
+    };
   });
 
-  ipcMain.handle("save_automation", (_evt, input: AutomationSettings) => {
+  ipcMain.handle("save_automation", async (_evt, input: AutomationSettings) => {
     const prev = getPublicSettings();
     const saved = saveAutomation(input);
     if (saved.autoReviewNew && !prev.autoReviewNew) {
-      markExistingPullRequestsKnown();
+      await markExistingPullRequestsKnown();
     }
     appendLog(
       "info",
@@ -147,7 +173,14 @@ function registerIpc(): void {
     return saved;
   });
 
-  ipcMain.handle("check_connection", async () => runConnectionCheck());
+  ipcMain.handle("check_connection", async (): Promise<ConnectionCheckResult> => {
+    const connection = await runConnectionCheck();
+    const refreshed = await refreshAfterBitbucketConnect(connection);
+    return {
+      connection,
+      ...(refreshed ?? {}),
+    };
+  });
 
   ipcMain.handle("list_pull_requests", () => getCachedPullRequests());
   ipcMain.handle("get_dashboard_stats", () => getDashboardStats());

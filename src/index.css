@@ -208,6 +208,9 @@ code {
 }
 
 .app-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   margin: 0;
   font-size: 1.25rem;
   line-height: 1.2;
@@ -216,8 +219,20 @@ code {
   color: var(--text);
 }
 
-.app-brand span {
+.app-brand-accent {
   color: var(--accent);
+}
+
+.app-mark {
+  display: grid;
+  height: 36px;
+  width: 36px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 11px;
+  background: var(--accent);
+  color: #ffffff;
+  box-shadow: var(--shadow-sm);
 }
 
 .app-nav {

@@ -31,6 +31,8 @@ export function SettingsTab() {
   const setConnecting = useAppStore((s) => s.setConnecting);
   const setError = useAppStore((s) => s.setError);
   const setLogs = useAppStore((s) => s.setLogs);
+  const setPrs = useAppStore((s) => s.setPrs);
+  const setStats = useAppStore((s) => s.setStats);
   const connecting = useAppStore((s) => s.connecting);
   const reviewing = useAppStore((s) => s.reviewing);
   const settingsLocked = connecting || reviewing;
@@ -66,6 +68,10 @@ export function SettingsTab() {
       });
       hydrateSettings(result.settings);
       setConnection(result.connection);
+      if (result.prs && result.stats) {
+        setPrs(result.prs);
+        setStats(result.stats);
+      }
       setLogs(await window.api.getLogs());
       setDraftField("token", "");
       if (result.connection.bitbucket === "disconnected" && result.connection.bitbucketMessage) {

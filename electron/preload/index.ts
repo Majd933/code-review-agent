@@ -2,25 +2,24 @@ import { contextBridge, ipcRenderer } from "electron";
 import type {
   AppSettings,
   AutomationSettings,
-  ConnectionState,
+  ConnectionCheckResult,
   DashboardStats,
   HistoryEntry,
   LogEntry,
   PullRequestItem,
   RefreshPullRequestsResult,
   ReviewResultPayload,
+  SaveSettingsResult,
   SettingsInput,
 } from "../main/types";
 
 const api = {
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke("get_settings"),
-  saveSettings: (
-    input: SettingsInput,
-  ): Promise<{ settings: AppSettings; connection: ConnectionState }> =>
+  saveSettings: (input: SettingsInput): Promise<SaveSettingsResult> =>
     ipcRenderer.invoke("save_settings", input),
   saveAutomation: (input: AutomationSettings): Promise<AppSettings> =>
     ipcRenderer.invoke("save_automation", input),
-  checkConnection: (): Promise<ConnectionState> => ipcRenderer.invoke("check_connection"),
+  checkConnection: (): Promise<ConnectionCheckResult> => ipcRenderer.invoke("check_connection"),
   listPullRequests: (): Promise<PullRequestItem[]> => ipcRenderer.invoke("list_pull_requests"),
   getDashboardStats: (): Promise<DashboardStats> => ipcRenderer.invoke("get_dashboard_stats"),
   refreshPullRequests: (): Promise<RefreshPullRequestsResult> =>

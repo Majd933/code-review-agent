@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { LayoutDashboard, History, ScrollText, Settings } from "lucide-react";
 import { ConnectionBadges } from "@/components/ConnectionBadges";
+import { AppMark } from "@/components/AppMark";
 import { clampAutoRefreshMinutes, maybeAutoReviewNew, refreshPullRequestsAction } from "@/lib/review-actions";
 import { settingsComplete, useAppStore } from "@/store/app-store";
 import { DashboardTab } from "@/tabs/DashboardTab";
@@ -51,12 +52,16 @@ export default function App() {
         setStats(stats);
 
         setConnecting(true);
-        const conn = await window.api.checkConnection();
+        const check = await window.api.checkConnection();
         if (cancelled) return;
-        setConnection(conn);
+        setConnection(check.connection);
 
         let bootNewPrIds: number[] = [];
-        if (conn.bitbucket === "connected") {
+        if (check.prs && check.stats) {
+          setPrs(check.prs);
+          setStats(check.stats);
+          bootNewPrIds = check.newPrIds ?? [];
+        } else if (check.connection.bitbucket === "connected") {
           try {
             const refreshed = await window.api.refreshPullRequests();
             if (cancelled) return;
@@ -123,7 +128,8 @@ export default function App() {
       <div className="app-topbar no-drag">
         <div className="flex min-w-0 items-center gap-5">
           <h1 className="app-brand shrink-0">
-            Code Review <span>Agent</span>
+            <AppMark />
+            Code Review <span className="app-brand-accent">Agent</span>
           </h1>
           <nav className="app-nav" role="tablist" aria-label="Main">
             {tabs.map((item) => {

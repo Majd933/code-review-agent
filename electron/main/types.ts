@@ -69,6 +69,21 @@ export interface RefreshPullRequestsResult {
   newPrIds: number[];
 }
 
+export interface ConnectionCheckResult {
+  connection: ConnectionState;
+  prs?: PullRequestItem[];
+  stats?: DashboardStats;
+  newPrIds?: number[];
+}
+
+export interface SaveSettingsResult {
+  settings: AppSettings;
+  connection: ConnectionState;
+  prs?: PullRequestItem[];
+  stats?: DashboardStats;
+  newPrIds?: number[];
+}
+
 export interface HistoryEntry {
   id: string;
   prId: number;

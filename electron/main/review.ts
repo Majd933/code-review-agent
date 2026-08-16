@@ -140,10 +140,15 @@ function rememberPrIds(workspace: string, repository: string, ids: number[], for
   return newcomers;
 }
 
-export function markExistingPullRequestsKnown(): void {
+export async function markExistingPullRequestsKnown(): Promise<void> {
   ensureStatusLoaded();
   try {
     const auth = getAuthContext();
+    // Never force-seed an empty cache: that marks the repo as "known" with []
+    // and the next refresh treats every open PR as new.
+    if (cachedPrs.length === 0) {
+      await refreshPullRequests();
+    }
     rememberPrIds(
       auth.workspace,
       auth.repository,
@@ -152,7 +157,7 @@ export function markExistingPullRequestsKnown(): void {
     );
     persistStatus();
   } catch {
-    /* settings incomplete; next refresh will seed this repo */
+    /* settings incomplete or refresh failed; a later refresh seeds without forceSeed */
   }
 }
 

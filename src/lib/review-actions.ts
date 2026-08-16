@@ -104,7 +104,8 @@ export async function maybeAutoReviewNew(newPrIds: number[]) {
 }
 
 export async function saveAutomationAction(patch: Partial<AutomationSettings>) {
-  const { settings } = useAppStore.getState();
+  const store = useAppStore.getState();
+  const { settings } = store;
   const next: AutomationSettings = {
     autoRefresh: patch.autoRefresh ?? settings.autoRefresh,
     autoRefreshMinutes: clampAutoRefreshMinutes(
@@ -113,5 +114,14 @@ export async function saveAutomationAction(patch: Partial<AutomationSettings>) {
     autoReviewNew: patch.autoReviewNew ?? settings.autoReviewNew,
   };
   const saved = await window.api.saveAutomation(next);
-  useAppStore.getState().applySettings(saved);
+  store.applySettings(saved);
+  // Enabling auto-review may refresh + seed known IDs in main; sync UI cache.
+  const [prs, stats, logs] = await Promise.all([
+    window.api.listPullRequests(),
+    window.api.getDashboardStats(),
+    window.api.getLogs(),
+  ]);
+  useAppStore.getState().setPrs(prs);
+  useAppStore.getState().setStats(stats);
+  useAppStore.getState().setLogs(logs);
 }
