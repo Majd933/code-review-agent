@@ -47,7 +47,7 @@ After save, the renderer only sees `hasToken: true`. It never gets the token bac
 ## Review flow
 
 1. **Settings** — Bitbucket URL, project, repository, token, prompt file, results directory, write mode (`local` or `bitbucket`). Repo page URL is `{origin}/projects/{project}/repos/{repository}`.
-2. **Dashboard → Refresh** — `GET .../pullrequests`. Needs **Pull requests: Read**. Optional **Auto refresh** (minutes) and **Auto-review new PRs** (only PRs that appear after the current list is known).
+2. **Dashboard → Refresh** — `GET {origin}/projects/{project}/repos/{repository}/pullrequests`. Needs **Pull requests: Read**. Optional **Auto refresh** (minutes) and **Auto-review new PRs** (only PRs that appear after the current list is known).
 3. **Review** — fetch the **diff** (Bitbucket requires **Repositories: Read**), write the prompt to a temp file, run `copilot` with a short `-p` that reads that file (`-s --no-ask-user`).
 4. Write `result/<repo>/PR-<id>-<timestamp>.md` and `.json`.
 5. If write mode is Bitbucket, post comments. If Local, stop at the files.

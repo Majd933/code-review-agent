@@ -1,7 +1,6 @@
+import { formatBitbucketRepoPageUrl } from "./bitbucket-url";
 import { DIFF_SIZE_LIMIT_BYTES } from "./types";
 import { appendLog } from "./logger";
-
-const API_BASE = "https://api.bitbucket.org/2.0";
 
 const IGNORE_PATTERNS = [
   /(^|\/)package-lock\.json$/i,
@@ -19,6 +18,7 @@ const IGNORE_PATTERNS = [
 ];
 
 export interface BitbucketAuth {
+  bitbucketUrl: string;
   project: string;
   repository: string;
   token: string;
@@ -34,12 +34,23 @@ export interface BbPullRequest {
   destination?: { branch?: { name?: string } };
 }
 
+function repoBaseUrl(auth: BitbucketAuth): string {
+  return formatBitbucketRepoPageUrl(auth.bitbucketUrl, auth.project, auth.repository).replace(/\/+$/, "");
+}
+
+function resolveBitbucketUrl(auth: BitbucketAuth, apiPath: string): string {
+  if (/^https?:\/\//i.test(apiPath)) return apiPath;
+  const base = repoBaseUrl(auth);
+  if (!apiPath || apiPath === "/") return base;
+  return `${base}${apiPath.startsWith("/") ? apiPath : `/${apiPath}`}`;
+}
+
 async function bbFetch(
   auth: BitbucketAuth,
   apiPath: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  const url = `${API_BASE}${apiPath}`;
+  const url = resolveBitbucketUrl(auth, apiPath);
   const headers = new Headers(init.headers);
   headers.set("Authorization", `Bearer ${auth.token}`);
   if (!headers.has("Accept")) {
@@ -95,24 +106,16 @@ function formatBitbucketError(status: number, text: string): string {
 }
 
 export async function checkBitbucketConnection(auth: BitbucketAuth): Promise<void> {
-  const repoPath = `/repositories/${encodeURIComponent(auth.project)}/${encodeURIComponent(auth.repository)}`;
-  await bbFetch(auth, `${repoPath}/pullrequests?state=OPEN&pagelen=1`);
-  await bbFetch(auth, repoPath);
+  await bbFetch(auth, "/pullrequests?state=OPEN&pagelen=1");
+  await bbFetch(auth, "");
 }
 
 export async function listOpenPullRequests(auth: BitbucketAuth): Promise<BbPullRequest[]> {
   const values: BbPullRequest[] = [];
-  let nextPath:
-    | string
-    | null =
-    `/repositories/${encodeURIComponent(auth.project)}/${encodeURIComponent(auth.repository)}` +
-    `/pullrequests?state=OPEN&pagelen=50`;
+  let nextPath: string | null = "/pullrequests?state=OPEN&pagelen=50";
 
   while (nextPath) {
-    const apiPath = nextPath.startsWith("http")
-      ? nextPath.replace(/^https:\/\/api\.bitbucket\.org\/2\.0/, "")
-      : nextPath;
-    const res = await bbFetch(auth, apiPath);
+    const res = await bbFetch(auth, nextPath);
     const data = (await res.json()) as { values?: BbPullRequest[]; next?: string };
     values.push(...(data.values ?? []));
     nextPath = data.next ?? null;
@@ -146,7 +149,7 @@ export function filterDiff(rawDiff: string): string {
 export async function fetchPullRequestDiff(auth: BitbucketAuth, prId: number): Promise<string> {
   const res = await bbFetch(
     auth,
-    `/repositories/${encodeURIComponent(auth.project)}/${encodeURIComponent(auth.repository)}/pullrequests/${prId}/diff`,
+    `/pullrequests/${prId}/diff`,
     { headers: { Accept: "text/plain" } },
   );
   const raw = await res.text();
@@ -172,7 +175,7 @@ export async function postGeneralComment(
 ): Promise<void> {
   await bbFetch(
     auth,
-    `/repositories/${encodeURIComponent(auth.project)}/${encodeURIComponent(auth.repository)}/pullrequests/${prId}/comments`,
+    `/pullrequests/${prId}/comments`,
     {
       method: "POST",
       body: JSON.stringify({ content: { raw: markdown } }),
@@ -189,7 +192,7 @@ export async function postInlineComment(
 ): Promise<void> {
   await bbFetch(
     auth,
-    `/repositories/${encodeURIComponent(auth.project)}/${encodeURIComponent(auth.repository)}/pullrequests/${prId}/comments`,
+    `/pullrequests/${prId}/comments`,
     {
       method: "POST",
       body: JSON.stringify({

@@ -103,6 +103,7 @@ async function runConnectionCheck(): Promise<ConnectionState> {
     try {
       const auth = getAuthContext();
       await checkBitbucketConnection({
+        bitbucketUrl: auth.bitbucketUrl,
         project: auth.project,
         repository: auth.repository,
         token: auth.token,
