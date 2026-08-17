@@ -1,11 +1,37 @@
+# Dependencies
 node_modules
+
+# Build output
 dist
 dist-electron
 release
+*.tsbuildinfo
+
+# Local review output (never commit PR diffs / Copilot results)
 result
 results
+
+# Logs
 *.log
-.DS_Store
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Env and secrets
 .env
 .env.*
 !.env.example
+*.enc
+token.enc
+
+# Local-only notes (English docs stay in the repo)
+docs/ARCHITECTURE.ar.md
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+
+# Editors
+.idea

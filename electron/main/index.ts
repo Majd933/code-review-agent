@@ -200,8 +200,8 @@ function registerIpc(): void {
   ipcMain.handle("get_history", () => getHistory());
 
   ipcMain.handle("open_review_file", async (_evt, filePath: string) => {
-    if (!filePath) throw new Error("No file path");
-    const err = await shell.openPath(filePath);
+    if (!filePath || filePath.includes("\0")) throw new Error("No file path");
+    const err = await shell.openPath(path.resolve(filePath));
     if (err) throw new Error(err);
   });
 
