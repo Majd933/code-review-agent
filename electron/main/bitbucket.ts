@@ -114,7 +114,7 @@ export async function checkBitbucketConnection(auth: BitbucketAuth): Promise<voi
   await bbFetch(auth, "");
 }
 
-export async function listOpenpull-requests(auth: BitbucketAuth): Promise<BbPullRequest[]> {
+export async function listOpenPullRequests(auth: BitbucketAuth): Promise<BbPullRequest[]> {
   const values: BbPullRequest[] = [];
   let nextPath: string | null = "/pull-requests?state=OPEN&pagelen=50";
 

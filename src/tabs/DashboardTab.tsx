@@ -5,7 +5,7 @@ import { cn, formatDate } from "@/lib/utils";
 import {
   clampAutoRefreshMinutes,
   maybeAutoReviewNew,
-  refreshpull-requestsAction,
+  refreshPullRequestsAction,
   reviewPullRequestAction,
   saveAutomationAction,
 } from "@/lib/review-actions";
@@ -97,7 +97,7 @@ export function DashboardTab() {
   const actionLocked = busy || reviewing;
 
   async function refresh() {
-    const result = await refreshpull-requestsAction();
+    const result = await refreshPullRequestsAction();
     if (result) await maybeAutoReviewNew(result.newPrIds);
   }
 

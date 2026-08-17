@@ -7,7 +7,7 @@ import type {
   HistoryEntry,
   LogEntry,
   PullRequestItem,
-  Refreshpull-requestsResult,
+  RefreshPullRequestsResult,
   ReviewResultPayload,
   SaveSettingsResult,
   SettingsInput,
@@ -20,9 +20,9 @@ const api = {
   saveAutomation: (input: AutomationSettings): Promise<AppSettings> =>
     ipcRenderer.invoke("save_automation", input),
   checkConnection: (): Promise<ConnectionCheckResult> => ipcRenderer.invoke("check_connection"),
-  listpull-requests: (): Promise<PullRequestItem[]> => ipcRenderer.invoke("list_pull_requests"),
+  listPullRequests: (): Promise<PullRequestItem[]> => ipcRenderer.invoke("list_pull_requests"),
   getDashboardStats: (): Promise<DashboardStats> => ipcRenderer.invoke("get_dashboard_stats"),
-  refreshpull-requests: (): Promise<Refreshpull-requestsResult> =>
+  refreshPullRequests: (): Promise<RefreshPullRequestsResult> =>
     ipcRenderer.invoke("refresh_pull_requests"),
   reviewPullRequest: (prId: number): Promise<ReviewResultPayload> =>
     ipcRenderer.invoke("review_pull_request", prId),

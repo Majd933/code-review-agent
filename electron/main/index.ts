@@ -12,18 +12,18 @@ import {
   settingsAreComplete,
 } from "./settings";
 import {
-  getCachedpull-requests,
+  getCachedPullRequests,
   getDashboardStats,
   loadPersistedReviewState,
-  markExistingpull-requestsKnown,
-  refreshpull-requests,
+  markExistingPullRequestsKnown,
+  refreshPullRequests,
   reviewPullRequest,
 } from "./review";
 import type {
   AutomationSettings,
   ConnectionCheckResult,
   ConnectionState,
-  Refreshpull-requestsResult,
+  RefreshPullRequestsResult,
   SaveSettingsResult,
   SettingsInput,
 } from "./types";
@@ -134,10 +134,10 @@ async function runConnectionCheck(): Promise<ConnectionState> {
 
 async function refreshAfterBitbucketConnect(
   connection: ConnectionState,
-): Promise<Refreshpull-requestsResult | null> {
+): Promise<RefreshPullRequestsResult | null> {
   if (connection.bitbucket !== "connected") return null;
   try {
-    const { prs, newPrIds } = await refreshpull-requests();
+    const { prs, newPrIds } = await refreshPullRequests();
     return { prs, stats: getDashboardStats(), newPrIds };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -165,7 +165,7 @@ function registerIpc(): void {
     const prev = getPublicSettings();
     const saved = saveAutomation(input);
     if (saved.autoReviewNew && !prev.autoReviewNew) {
-      await markExistingpull-requestsKnown();
+      await markExistingPullRequestsKnown();
     }
     appendLog(
       "info",
@@ -183,14 +183,14 @@ function registerIpc(): void {
     };
   });
 
-  ipcMain.handle("list_pull_requests", () => getCachedpull-requests());
+  ipcMain.handle("list_pull_requests", () => getCachedPullRequests());
   ipcMain.handle("get_dashboard_stats", () => getDashboardStats());
 
   ipcMain.handle("refresh_pull_requests", async () => {
     if (!settingsAreComplete()) {
       throw new Error("Settings are incomplete");
     }
-    const { prs, newPrIds } = await refreshpull-requests();
+    const { prs, newPrIds } = await refreshPullRequests();
     return { prs, stats: getDashboardStats(), newPrIds };
   });
 

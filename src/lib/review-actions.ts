@@ -13,7 +13,7 @@ export function clampAutoRefreshMinutes(value: number): number {
   return Math.min(MAX_AUTO_REFRESH_MINUTES, Math.max(MIN_AUTO_REFRESH_MINUTES, Math.round(value)));
 }
 
-export async function refreshpull-requestsAction(opts?: { background?: boolean }) {
+export async function refreshPullRequestsAction(opts?: { background?: boolean }) {
   const store = useAppStore.getState();
   if (!settingsComplete(store.settings) || store.connection.bitbucket !== "connected") {
     if (!opts?.background) {
@@ -30,7 +30,7 @@ export async function refreshpull-requestsAction(opts?: { background?: boolean }
     store.setError(null);
   }
   try {
-    const result = await window.api.refreshpull-requests();
+    const result = await window.api.refreshPullRequests();
     store.setPrs(result.prs);
     store.setStats(result.stats);
     store.setLogs(await window.api.getLogs());
@@ -70,7 +70,7 @@ export async function reviewPullRequestAction(prId: number) {
   try {
     const result = await window.api.reviewPullRequest(prId);
     const [nextPrs, nextStats, nextHistory, nextLogs] = await Promise.all([
-      window.api.listpull-requests(),
+      window.api.listPullRequests(),
       window.api.getDashboardStats(),
       window.api.getHistory(),
       window.api.getLogs(),
@@ -83,7 +83,7 @@ export async function reviewPullRequestAction(prId: number) {
   } catch (err) {
     store.setError(err instanceof Error ? err.message : String(err));
     try {
-      store.setPrs(await window.api.listpull-requests());
+      store.setPrs(await window.api.listPullRequests());
     } catch {
       /* ignore */
     }
@@ -117,7 +117,7 @@ export async function saveAutomationAction(patch: Partial<AutomationSettings>) {
   store.applySettings(saved);
   // Enabling auto-review may refresh + seed known IDs in main; sync UI cache.
   const [prs, stats, logs] = await Promise.all([
-    window.api.listpull-requests(),
+    window.api.listPullRequests(),
     window.api.getDashboardStats(),
     window.api.getLogs(),
   ]);

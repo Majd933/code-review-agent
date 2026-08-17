@@ -63,7 +63,7 @@ export interface DashboardStats {
   lastReviewAt: string | null;
 }
 
-export interface Refreshpull-requestsResult {
+export interface RefreshPullRequestsResult {
   prs: PullRequestItem[];
   stats: DashboardStats;
   newPrIds: number[];
