@@ -77,7 +77,7 @@ async function bbFetch(
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     appendLog("error", `Bitbucket ${method} ${url} → ${response.status}`);
-    throw new Error(formatBitbucketError(response.status, text || response.statusText));
+    throw new Error(formatBitbucketError(response.status, text || response.statusText, method, url));
   }
   if (looksLikeHtmlPage(contentType, "")) {
     appendLog("error", `Bitbucket ${method} ${url} → HTML login page`);
@@ -96,33 +96,129 @@ function humanScope(scope: string): string {
   return scope;
 }
 
-function formatBitbucketError(status: number, text: string): string {
+function parseBitbucketErrorBody(text: string): {
+  message: string;
+  required: string[];
+  granted: string[];
+} {
   try {
     const body = JSON.parse(text) as {
       error?: {
         message?: string;
         detail?: { required?: string[]; granted?: string[] };
       };
+      errors?: Array<{ message?: string }>;
+      message?: string;
     };
-    const required = body.error?.detail?.required ?? [];
-    const granted = body.error?.detail?.granted ?? [];
-    if (status === 403 && required.length) {
-      const missing = required.filter((scope) => !granted.includes(scope));
-      const names = (missing.length ? missing : required).map(humanScope).join(", ");
-      return (
-        `Bitbucket token is missing ${names}. Create a new Repository Access Token with ` +
-        `Repositories: Read and Pull requests: Read. Add Pull requests: Write only if posting comments. ` +
-        `Paste the new token in Settings and save.`
-      );
-    }
-    if (body.error?.message) {
-      return `Bitbucket API ${status}: ${body.error.message}`;
-    }
+    const message = (
+      body.error?.message ||
+      body.errors?.find((item) => item.message)?.message ||
+      body.message ||
+      ""
+    ).trim();
+    return {
+      message,
+      required: body.error?.detail?.required ?? [],
+      granted: body.error?.detail?.granted ?? [],
+    };
   } catch {
-    // not JSON; use a redacted snippet
+    return { message: "", required: [], granted: [] };
   }
-  const safe = text.slice(0, 200).replace(/Bearer\s+\S+/gi, "[REDACTED]");
-  return `Bitbucket API ${status}: ${safe || "request failed"}`;
+}
+
+function isCommentWrite(method: string, url: string): boolean {
+  return method === "POST" && /\/pull-requests\/\d+\/comments(?:\?|$)/i.test(url);
+}
+
+function looksLikePermissionIssue(message: string): boolean {
+  return /permission|not permitted|not allowed|read-?only|forbidden|unauthorized|insufficient|scope|access denied/i.test(
+    message,
+  );
+}
+
+function commentWriteHint(): string {
+  return (
+    "This token can read the pull request but cannot post comments. " +
+    "In Settings, set Write mode to Local, or create a token with Pull requests: Write and paste it in Settings."
+  );
+}
+
+function formatBitbucketError(status: number, text: string, method: string, url: string): string {
+  const parsed = parseBitbucketErrorBody(text);
+  const writingComments = isCommentWrite(method, url);
+  const serverNote = parsed.message && !looksLikeHtmlPage("application/json", parsed.message)
+    ? ` Bitbucket said: ${parsed.message.replace(/Bearer\s+\S+/gi, "[REDACTED]")}`
+    : "";
+
+  if (status === 403 && parsed.required.length) {
+    const missing = parsed.required.filter((scope) => !parsed.granted.includes(scope));
+    const names = (missing.length ? missing : parsed.required).map(humanScope).join(", ");
+    const extra = writingComments ? ` ${commentWriteHint()}` : "";
+    return (
+      `Bitbucket denied access (HTTP 403): the token is missing ${names}. ` +
+      `Create a new Repository Access Token with Repositories: Read and Pull requests: Read. ` +
+      `Add Pull requests: Write only if posting comments. Paste the new token in Settings and save.` +
+      extra
+    );
+  }
+
+  if (writingComments && (status === 400 || status === 403)) {
+    return `Could not post a comment on the pull request (HTTP ${status}). ${commentWriteHint()}${serverNote}`;
+  }
+
+  switch (status) {
+    case 400:
+      return (
+        `Bitbucket rejected the request (HTTP 400). The REST URL or request body is invalid. ` +
+        `Check the URL in Logs, and confirm project and repository in Settings.` +
+        serverNote
+      );
+    case 401:
+      return (
+        `Bitbucket did not accept the token (HTTP 401). The token is missing, expired, or invalid. ` +
+        `Paste a valid Repository Access Token in Settings and save.` +
+        serverNote
+      );
+    case 403:
+      if (looksLikePermissionIssue(parsed.message) || !parsed.message) {
+        return (
+          `Bitbucket denied access (HTTP 403). The token does not have permission for this action. ` +
+          `Listing PRs needs Pull requests: Read. Fetching a diff needs Repositories: Read. ` +
+          `Posting comments needs Pull requests: Write.` +
+          serverNote
+        );
+      }
+      return `Bitbucket denied access (HTTP 403).${serverNote}`;
+    case 404:
+      return (
+        `Bitbucket could not find this resource (HTTP 404). ` +
+        `Check Bitbucket URL, project, and repository in Settings. The REST URL is in Logs.` +
+        serverNote
+      );
+    case 405:
+      return (
+        `Bitbucket does not allow this HTTP method (HTTP 405). Check the REST URL in Logs.` +
+        serverNote
+      );
+    case 409:
+      return (
+        `Bitbucket reported a conflict (HTTP 409). The pull request may have changed. Refresh and try again.` +
+        serverNote
+      );
+    case 429:
+      return `Bitbucket rate-limited the request (HTTP 429). Wait a minute and try again.${serverNote}`;
+    case 500:
+    case 502:
+    case 503:
+    case 504:
+      return `Bitbucket server error (HTTP ${status}). Try again later.${serverNote}`;
+    default:
+      break;
+  }
+
+  const fallback = text.slice(0, 160).replace(/Bearer\s+\S+/gi, "[REDACTED]").replace(/\s+/g, " ").trim();
+  const extra = serverNote || (fallback && !looksLikeHtmlPage(null, fallback) ? ` Details: ${fallback}` : "");
+  return `Bitbucket request failed (HTTP ${status}).${extra}`;
 }
 
 export async function checkBitbucketConnection(auth: BitbucketAuth): Promise<void> {
