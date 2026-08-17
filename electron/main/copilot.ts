@@ -169,16 +169,22 @@ export function parseCopilotOutput(raw: string): ParsedReview {
       const jsonText = candidate.slice(start, end + 1);
       const data = JSON.parse(jsonText) as {
         summary?: string;
-        findings?: Array<{ severity?: string; file?: string; line?: number; message?: string }>;
+        findings?: Array<{ severity?: string; file?: string; line?: number | string; message?: string }>;
       };
       const findings = (data.findings ?? [])
-        .filter((f) => f.file && f.message && typeof f.line === "number")
-        .map((f) => ({
-          severity: f.severity ?? "info",
-          file: String(f.file),
-          line: Number(f.line),
-          message: String(f.message),
-        }));
+        .map((f) => {
+          const parsedLine =
+            typeof f.line === "number" && Number.isFinite(f.line)
+              ? Math.floor(f.line)
+              : Number(String(f.line ?? "").trim().replace(/^L/i, ""));
+          return {
+            severity: f.severity ?? "info",
+            file: String(f.file ?? "").trim(),
+            line: Number.isFinite(parsedLine) && parsedLine > 0 ? parsedLine : 0,
+            message: String(f.message ?? "").trim(),
+          };
+        })
+        .filter((f) => f.file && f.message);
       return {
         summary: data.summary?.trim() || raw.trim(),
         findings,

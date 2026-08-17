@@ -324,20 +324,31 @@ export async function postInlineComment(
   message: string,
   lineType: "ADDED" | "CONTEXT" = "ADDED",
 ): Promise<void> {
-  await bbFetch(
-    auth,
-    `/pull-requests/${prId}/comments`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        text: message,
-        anchor: {
-          path: filePath,
-          line: Math.max(1, Math.floor(line)),
-          lineType,
-          fileType: "TO",
+  const types: Array<"ADDED" | "CONTEXT"> =
+    lineType === "ADDED" ? ["ADDED", "CONTEXT"] : ["CONTEXT", "ADDED"];
+  let lastError: unknown;
+  for (const type of types) {
+    try {
+      await bbFetch(
+        auth,
+        `/pull-requests/${prId}/comments`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            text: message,
+            anchor: {
+              path: filePath,
+              line: Math.max(1, Math.floor(line)),
+              lineType: type,
+              fileType: "TO",
+            },
+          }),
         },
-      }),
-    },
-  );
+      );
+      return;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
