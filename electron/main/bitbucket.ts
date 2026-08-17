@@ -297,7 +297,7 @@ export async function postGeneralComment(
     `/pull-requests/${prId}/comments`,
     {
       method: "POST",
-      body: JSON.stringify({ content: { raw: markdown } }),
+      body: JSON.stringify({ text: markdown }),
     },
   );
 }
@@ -315,8 +315,13 @@ export async function postInlineComment(
     {
       method: "POST",
       body: JSON.stringify({
-        content: { raw: message },
-        inline: { path: filePath, to: line },
+        text: message,
+        anchor: {
+          path: filePath,
+          line: Math.max(1, Math.floor(line)),
+          lineType: "ADDED",
+          fileType: "TO",
+        },
       }),
     },
   );
