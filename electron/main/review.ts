@@ -89,8 +89,50 @@ function setPrStatus(
   if (update.status !== "running") persistStatus();
 }
 
+function prAuthor(pr: BbPullRequest): string {
+  return (
+    pr.author?.display_name ||
+    pr.author?.nickname ||
+    pr.author?.displayName ||
+    pr.author?.user?.displayName ||
+    pr.author?.user?.display_name ||
+    pr.author?.user?.nickname ||
+    pr.author?.user?.name ||
+    pr.author?.name ||
+    "Unknown"
+  );
+}
+
+function prSourceBranch(pr: BbPullRequest): string {
+  return pr.source?.branch?.name || pr.fromRef?.displayId || "";
+}
+
+function prDestinationBranch(pr: BbPullRequest): string {
+  return pr.destination?.branch?.name || pr.toRef?.displayId || "";
+}
+
+function prCommitHash(pr: BbPullRequest): string {
+  return pr.source?.commit?.hash || pr.fromRef?.latestCommit || "";
+}
+
+function prUpdatedOn(pr: BbPullRequest): string {
+  if (pr.updated_on?.trim()) return pr.updated_on;
+  if (typeof pr.updatedDate === "number" && Number.isFinite(pr.updatedDate)) {
+    return new Date(pr.updatedDate).toISOString();
+  }
+  if (typeof pr.updatedDate === "string" && pr.updatedDate.trim()) {
+    const asNumber = Number(pr.updatedDate);
+    if (Number.isFinite(asNumber) && asNumber > 1e11) {
+      return new Date(asNumber).toISOString();
+    }
+    const parsed = new Date(pr.updatedDate);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
+  }
+  return "";
+}
+
 function mapPr(pr: BbPullRequest, workspace: string, repository: string): PullRequestItem {
-  const commitHash = pr.source?.commit?.hash ?? "";
+  const commitHash = prCommitHash(pr);
   const key = prStatusKey(workspace, repository, pr.id);
   const prev = reviewStatusByPr.get(key);
   const stale = Boolean(prev?.commitHash && commitHash && prev.commitHash !== commitHash);
@@ -99,11 +141,11 @@ function mapPr(pr: BbPullRequest, workspace: string, repository: string): PullRe
   return {
     id: pr.id,
     title: pr.title,
-    author: pr.author?.display_name || pr.author?.nickname || "Unknown",
+    author: prAuthor(pr),
     state: pr.state,
-    sourceBranch: pr.source?.branch?.name ?? "",
-    destinationBranch: pr.destination?.branch?.name ?? "",
-    updatedOn: pr.updated_on,
+    sourceBranch: prSourceBranch(pr),
+    destinationBranch: prDestinationBranch(pr),
+    updatedOn: prUpdatedOn(pr),
     commitHash,
     reviewStatus: status,
     lastError: stale || status === "not_reviewed" ? undefined : prev?.lastError,

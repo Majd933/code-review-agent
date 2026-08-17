@@ -28,10 +28,24 @@ export interface BbPullRequest {
   id: number;
   title: string;
   state: string;
-  updated_on: string;
-  author?: { display_name?: string; nickname?: string };
+  updated_on?: string;
+  updatedDate?: number | string;
+  author?: {
+    display_name?: string;
+    displayName?: string;
+    nickname?: string;
+    name?: string;
+    user?: {
+      displayName?: string;
+      display_name?: string;
+      nickname?: string;
+      name?: string;
+    };
+  };
   source?: { branch?: { name?: string }; commit?: { hash?: string } };
   destination?: { branch?: { name?: string } };
+  fromRef?: { displayId?: string; latestCommit?: string };
+  toRef?: { displayId?: string };
 }
 
 function repoApiBaseUrl(auth: BitbucketAuth): string {
