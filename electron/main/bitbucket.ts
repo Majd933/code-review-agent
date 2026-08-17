@@ -1,4 +1,4 @@
-import { formatBitbucketRepoPageUrl } from "./bitbucket-url";
+import { bitbucketOrigin, formatBitbucketRestApiBaseUrl } from "./bitbucket-url";
 import { DIFF_SIZE_LIMIT_BYTES } from "./types";
 import { appendLog } from "./logger";
 
@@ -34,15 +34,24 @@ export interface BbPullRequest {
   destination?: { branch?: { name?: string } };
 }
 
-function repoBaseUrl(auth: BitbucketAuth): string {
-  return formatBitbucketRepoPageUrl(auth.bitbucketUrl, auth.project, auth.repository).replace(/\/+$/, "");
+function repoApiBaseUrl(auth: BitbucketAuth): string {
+  return formatBitbucketRestApiBaseUrl(auth.bitbucketUrl, auth.project, auth.repository).replace(/\/+$/, "");
 }
 
 function resolveBitbucketUrl(auth: BitbucketAuth, apiPath: string): string {
   if (/^https?:\/\//i.test(apiPath)) return apiPath;
-  const base = repoBaseUrl(auth);
+  const origin = (bitbucketOrigin(auth.bitbucketUrl) || "https://bitbucket.org").replace(/\/+$/, "");
+  if (apiPath.startsWith("/rest/")) return `${origin}${apiPath}`;
+  const base = repoApiBaseUrl(auth);
   if (!apiPath || apiPath === "/") return base;
   return `${base}${apiPath.startsWith("/") ? apiPath : `/${apiPath}`}`;
+}
+
+function looksLikeHtmlPage(contentType: string | null, body: string): boolean {
+  const type = (contentType ?? "").toLowerCase();
+  if (type.includes("text/html")) return true;
+  const head = body.slice(0, 512).trimStart().toLowerCase();
+  return head.startsWith("<!doctype") || head.startsWith("<html");
 }
 
 async function bbFetch(
@@ -64,10 +73,17 @@ async function bbFetch(
   appendLog("info", `Bitbucket ${method} ${url}`);
 
   const response = await fetch(url, { ...init, headers });
+  const contentType = response.headers.get("content-type");
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     appendLog("error", `Bitbucket ${method} ${url} → ${response.status}`);
     throw new Error(formatBitbucketError(response.status, text || response.statusText));
+  }
+  if (looksLikeHtmlPage(contentType, "")) {
+    appendLog("error", `Bitbucket ${method} ${url} → HTML login page`);
+    throw new Error(
+      "Bitbucket returned an HTML login page instead of API data. Check the REST URL in Logs.",
+    );
   }
   return response;
 }
@@ -157,6 +173,9 @@ export async function fetchPullRequestDiff(auth: BitbucketAuth, prId: number): P
     { headers: { Accept: "text/plain" } },
   );
   const raw = await res.text();
+  if (looksLikeHtmlPage(res.headers.get("content-type"), raw)) {
+    throw new Error("Bitbucket returned an HTML login page instead of a PR diff. Check the REST URL in Logs.");
+  }
   const filtered = filterDiff(raw);
   const size = Buffer.byteLength(filtered, "utf8");
   if (size > DIFF_SIZE_LIMIT_BYTES) {

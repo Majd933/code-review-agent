@@ -21,6 +21,18 @@ export function formatBitbucketRepoPageUrl(
   return `${origin}/projects/${projectKey}/repos/${repoSlug}`;
 }
 
+/** REST API repo base: {origin}/rest/api/1.0/projects/{project}/repos/{repository} */
+export function formatBitbucketRestApiBaseUrl(
+  bitbucketUrl: string,
+  project: string,
+  repository: string,
+): string {
+  const origin = bitbucketOrigin(bitbucketUrl) || "https://bitbucket.org";
+  const projectKey = project.trim() || "{project}";
+  const repoSlug = repository.trim() || "{repository}";
+  return `${origin}/rest/api/1.0/projects/${projectKey}/repos/${repoSlug}`;
+}
+
 export function parseBitbucketRepoUrl(input: string): {
   bitbucketUrl: string;
   project?: string;
