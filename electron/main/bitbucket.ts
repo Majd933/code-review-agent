@@ -60,9 +60,13 @@ async function bbFetch(
     headers.set("Content-Type", "application/json");
   }
 
+  const method = (init.method || "GET").toUpperCase();
+  appendLog("info", `Bitbucket ${method} ${url}`);
+
   const response = await fetch(url, { ...init, headers });
   if (!response.ok) {
     const text = await response.text().catch(() => "");
+    appendLog("error", `Bitbucket ${method} ${url} → ${response.status}`);
     throw new Error(formatBitbucketError(response.status, text || response.statusText));
   }
   return response;
