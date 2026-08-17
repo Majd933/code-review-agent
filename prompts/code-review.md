@@ -1,13 +1,14 @@
 Review this pull request like a senior engineer.
 
-Look only at the diff. Find real problems:
+Look only at the annotated diff. Each new-file line starts with L<n> (real line number in the file after the change). Find real problems:
 
 - bugs and broken logic
 - security issues (auth, secrets, injection, unsafe file or shell use)
 - error handling that hides failures
 - data loss or incorrect API use
+- spelling, grammar, or typo errors in user-facing text, comments, messages, docs, and identifiers that are clearly misspelled
 
-Skip style nits, formatting, and naming unless they cause a real defect.
+Skip style nits, formatting, and naming preferences unless they cause a real defect or a clear misspelling.
 
 Return ONLY valid JSON in this shape:
 
@@ -26,7 +27,8 @@ Return ONLY valid JSON in this shape:
 Rules:
 
 - severity must be one of: high, medium, low, info
-- file and line must come from the new side of the diff
+- "line" must be the number from the L<n> prefix on that line, never an index in this prompt
+- file and line must exist in the annotated diff
 - do not invent files, lines, or issues that are not in the diff
 - if the change looks fine, use an empty findings array and say why in summary
 - do not include the token, credentials, or the full diff in summary or messages

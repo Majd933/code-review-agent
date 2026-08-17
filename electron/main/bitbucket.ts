@@ -322,6 +322,7 @@ export async function postInlineComment(
   filePath: string,
   line: number,
   message: string,
+  lineType: "ADDED" | "CONTEXT" = "ADDED",
 ): Promise<void> {
   await bbFetch(
     auth,
@@ -333,7 +334,7 @@ export async function postInlineComment(
         anchor: {
           path: filePath,
           line: Math.max(1, Math.floor(line)),
-          lineType: "ADDED",
+          lineType,
           fileType: "TO",
         },
       }),
