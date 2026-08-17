@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { LayoutDashboard, History, ScrollText, Settings } from "lucide-react";
 import { ConnectionBadges } from "@/components/ConnectionBadges";
 import { AppMark } from "@/components/AppMark";
-import { clampAutoRefreshMinutes, maybeAutoReviewNew, refreshPullRequestsAction } from "@/lib/review-actions";
+import { clampAutoRefreshMinutes, maybeAutoReviewNew, refreshpull-requestsAction } from "@/lib/review-actions";
 import { settingsComplete, useAppStore } from "@/store/app-store";
 import { DashboardTab } from "@/tabs/DashboardTab";
 import { HistoryTab } from "@/tabs/HistoryTab";
@@ -41,7 +41,7 @@ export default function App() {
           window.api.getSettings(),
           window.api.getHistory(),
           window.api.getLogs(),
-          window.api.listPullRequests(),
+          window.api.listpull-requests(),
           window.api.getDashboardStats(),
         ]);
         if (cancelled) return;
@@ -63,7 +63,7 @@ export default function App() {
           bootNewPrIds = check.newPrIds ?? [];
         } else if (check.connection.bitbucket === "connected") {
           try {
-            const refreshed = await window.api.refreshPullRequests();
+            const refreshed = await window.api.refreshpull-requests();
             if (cancelled) return;
             setPrs(refreshed.prs);
             setStats(refreshed.stats);
@@ -105,7 +105,7 @@ export default function App() {
     const minutes = clampAutoRefreshMinutes(settings.autoRefreshMinutes);
     const timer = window.setInterval(() => {
       void (async () => {
-        const result = await refreshPullRequestsAction({ background: true });
+        const result = await refreshpull-requestsAction({ background: true });
         if (result) await maybeAutoReviewNew(result.newPrIds);
       })();
     }, minutes * 60_000);

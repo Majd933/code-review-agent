@@ -110,13 +110,13 @@ function formatBitbucketError(status: number, text: string): string {
 }
 
 export async function checkBitbucketConnection(auth: BitbucketAuth): Promise<void> {
-  await bbFetch(auth, "/pullrequests?state=OPEN&pagelen=1");
+  await bbFetch(auth, "/pull-requests?state=OPEN&pagelen=1");
   await bbFetch(auth, "");
 }
 
-export async function listOpenPullRequests(auth: BitbucketAuth): Promise<BbPullRequest[]> {
+export async function listOpenpull-requests(auth: BitbucketAuth): Promise<BbPullRequest[]> {
   const values: BbPullRequest[] = [];
-  let nextPath: string | null = "/pullrequests?state=OPEN&pagelen=50";
+  let nextPath: string | null = "/pull-requests?state=OPEN&pagelen=50";
 
   while (nextPath) {
     const res = await bbFetch(auth, nextPath);
@@ -153,7 +153,7 @@ export function filterDiff(rawDiff: string): string {
 export async function fetchPullRequestDiff(auth: BitbucketAuth, prId: number): Promise<string> {
   const res = await bbFetch(
     auth,
-    `/pullrequests/${prId}/diff`,
+    `/pull-requests/${prId}/diff`,
     { headers: { Accept: "text/plain" } },
   );
   const raw = await res.text();
@@ -179,7 +179,7 @@ export async function postGeneralComment(
 ): Promise<void> {
   await bbFetch(
     auth,
-    `/pullrequests/${prId}/comments`,
+    `/pull-requests/${prId}/comments`,
     {
       method: "POST",
       body: JSON.stringify({ content: { raw: markdown } }),
@@ -196,7 +196,7 @@ export async function postInlineComment(
 ): Promise<void> {
   await bbFetch(
     auth,
-    `/pullrequests/${prId}/comments`,
+    `/pull-requests/${prId}/comments`,
     {
       method: "POST",
       body: JSON.stringify({

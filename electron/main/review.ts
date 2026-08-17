@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { getAuthContext } from "./settings";
 import {
   fetchPullRequestDiff,
-  listOpenPullRequests,
+  listOpenpull-requests,
   postGeneralComment,
   postInlineComment,
   type BbPullRequest,
@@ -123,7 +123,7 @@ export function getDashboardStats(): DashboardStats {
   };
 }
 
-export function getCachedPullRequests(): PullRequestItem[] {
+export function getCachedpull-requests(): PullRequestItem[] {
   ensureStatusLoaded();
   return cachedPrs;
 }
@@ -140,14 +140,14 @@ function rememberPrIds(workspace: string, repository: string, ids: number[], for
   return newcomers;
 }
 
-export async function markExistingPullRequestsKnown(): Promise<void> {
+export async function markExistingpull-requestsKnown(): Promise<void> {
   ensureStatusLoaded();
   try {
     const auth = getAuthContext();
     // Never force-seed an empty cache: that marks the repo as "known" with []
     // and the next refresh treats every open PR as new.
     if (cachedPrs.length === 0) {
-      await refreshPullRequests();
+      await refreshpull-requests();
     }
     rememberPrIds(
       auth.project,
@@ -161,11 +161,11 @@ export async function markExistingPullRequestsKnown(): Promise<void> {
   }
 }
 
-export async function refreshPullRequests(): Promise<{ prs: PullRequestItem[]; newPrIds: number[] }> {
+export async function refreshpull-requests(): Promise<{ prs: PullRequestItem[]; newPrIds: number[] }> {
   ensureStatusLoaded();
   const auth = getAuthContext();
   appendLog("info", `Refreshing open pull requests for ${auth.project}/${auth.repository}`);
-  const list = await listOpenPullRequests({
+  const list = await listOpenpull-requests({
     bitbucketUrl: auth.bitbucketUrl,
     project: auth.project,
     repository: auth.repository,
@@ -215,7 +215,7 @@ export async function reviewPullRequest(prId: number): Promise<ReviewResultPaylo
   ensureStatusLoaded();
   const pr =
     cachedPrs.find((p) => p.id === prId) ??
-    (await refreshPullRequests()).prs.find((p) => p.id === prId);
+    (await refreshpull-requests()).prs.find((p) => p.id === prId);
 
   if (!pr) {
     throw new Error(`Pull request #${prId} not found in open list`);
