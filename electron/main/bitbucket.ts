@@ -19,7 +19,7 @@ const IGNORE_PATTERNS = [
 ];
 
 export interface BitbucketAuth {
-  workspace: string;
+  project: string;
   repository: string;
   token: string;
 }
@@ -95,7 +95,7 @@ function formatBitbucketError(status: number, text: string): string {
 }
 
 export async function checkBitbucketConnection(auth: BitbucketAuth): Promise<void> {
-  const repoPath = `/repositories/${encodeURIComponent(auth.workspace)}/${encodeURIComponent(auth.repository)}`;
+  const repoPath = `/repositories/${encodeURIComponent(auth.project)}/${encodeURIComponent(auth.repository)}`;
   await bbFetch(auth, `${repoPath}/pullrequests?state=OPEN&pagelen=1`);
   await bbFetch(auth, repoPath);
 }
@@ -105,7 +105,7 @@ export async function listOpenPullRequests(auth: BitbucketAuth): Promise<BbPullR
   let nextPath:
     | string
     | null =
-    `/repositories/${encodeURIComponent(auth.workspace)}/${encodeURIComponent(auth.repository)}` +
+    `/repositories/${encodeURIComponent(auth.project)}/${encodeURIComponent(auth.repository)}` +
     `/pullrequests?state=OPEN&pagelen=50`;
 
   while (nextPath) {
@@ -146,7 +146,7 @@ export function filterDiff(rawDiff: string): string {
 export async function fetchPullRequestDiff(auth: BitbucketAuth, prId: number): Promise<string> {
   const res = await bbFetch(
     auth,
-    `/repositories/${encodeURIComponent(auth.workspace)}/${encodeURIComponent(auth.repository)}/pullrequests/${prId}/diff`,
+    `/repositories/${encodeURIComponent(auth.project)}/${encodeURIComponent(auth.repository)}/pullrequests/${prId}/diff`,
     { headers: { Accept: "text/plain" } },
   );
   const raw = await res.text();
@@ -172,7 +172,7 @@ export async function postGeneralComment(
 ): Promise<void> {
   await bbFetch(
     auth,
-    `/repositories/${encodeURIComponent(auth.workspace)}/${encodeURIComponent(auth.repository)}/pullrequests/${prId}/comments`,
+    `/repositories/${encodeURIComponent(auth.project)}/${encodeURIComponent(auth.repository)}/pullrequests/${prId}/comments`,
     {
       method: "POST",
       body: JSON.stringify({ content: { raw: markdown } }),
@@ -189,7 +189,7 @@ export async function postInlineComment(
 ): Promise<void> {
   await bbFetch(
     auth,
-    `/repositories/${encodeURIComponent(auth.workspace)}/${encodeURIComponent(auth.repository)}/pullrequests/${prId}/comments`,
+    `/repositories/${encodeURIComponent(auth.project)}/${encodeURIComponent(auth.repository)}/pullrequests/${prId}/comments`,
     {
       method: "POST",
       body: JSON.stringify({

@@ -88,8 +88,9 @@ This starts Vite and opens the Electron window.
 1. Open the **Settings** tab.
 2. Fill every required field (all start empty):
    - Bitbucket URL (example: `https://bitbucket.org`)
-   - Workspace
-   - Repository slug
+   - Project (example: `acme-workspace`)
+   - Repository slug (example: `payments-api`)
+   - The Settings page shows the full repo URL as `{Bitbucket URL}/projects/{project}/repos/{repository}`
    - Repository Access Token (scopes above)
    - Prompt file path (select `prompts/code-review.md` in this project, or `assets/default-prompt.md`)
    - Results directory (local folder for review output)

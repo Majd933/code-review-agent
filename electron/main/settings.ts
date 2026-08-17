@@ -1,6 +1,7 @@
 import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
+import { parseBitbucketRepoUrl } from "./bitbucket-url";
 import type { AppSettings, AutomationSettings, SettingsInput, WriteMode } from "./types";
 import {
   DEFAULT_AUTO_REFRESH_MINUTES,
@@ -11,7 +12,7 @@ import { clearToken, hasStoredToken, loadToken, saveToken } from "./secrets";
 
 interface StoredSettings {
   bitbucketUrl: string;
-  workspace: string;
+  project: string;
   repository: string;
   promptPath: string;
   resultsDir: string;
@@ -23,7 +24,7 @@ interface StoredSettings {
 
 const EMPTY: StoredSettings = {
   bitbucketUrl: "",
-  workspace: "",
+  project: "",
   repository: "",
   promptPath: "",
   resultsDir: "",
@@ -38,29 +39,6 @@ export function clampAutoRefreshMinutes(value: number): number {
   return Math.min(MAX_AUTO_REFRESH_MINUTES, Math.max(MIN_AUTO_REFRESH_MINUTES, Math.round(value)));
 }
 
-export function parseBitbucketRepoUrl(input: string): {
-  bitbucketUrl: string;
-  workspace?: string;
-  repository?: string;
-} {
-  const trimmed = input.trim();
-  try {
-    const url = new URL(trimmed.includes("://") ? trimmed : `https://${trimmed}`);
-    const origin = `${url.protocol}//${url.host}`;
-    const parts = url.pathname.split("/").filter(Boolean);
-    if (parts.length >= 2) {
-      return {
-        bitbucketUrl: origin,
-        workspace: parts[0],
-        repository: parts[1].replace(/\.git$/i, ""),
-      };
-    }
-    return { bitbucketUrl: origin };
-  } catch {
-    return { bitbucketUrl: trimmed };
-  }
-}
-
 function settingsPath(): string {
   return path.join(app.getPath("userData"), "settings.json");
 }
@@ -69,10 +47,12 @@ function readStored(): StoredSettings {
   const file = settingsPath();
   if (!fs.existsSync(file)) return { ...EMPTY };
   try {
-    const raw = JSON.parse(fs.readFileSync(file, "utf8")) as Partial<StoredSettings>;
+    const raw = JSON.parse(fs.readFileSync(file, "utf8")) as Partial<StoredSettings> & {
+      workspace?: string;
+    };
     return {
       bitbucketUrl: raw.bitbucketUrl ?? "",
-      workspace: raw.workspace ?? "",
+      project: (raw.project || raw.workspace || "").trim(),
       repository: raw.repository ?? "",
       promptPath: raw.promptPath ?? "",
       resultsDir: raw.resultsDir ?? "",
@@ -104,7 +84,7 @@ export function getPublicSettings(): AppSettings {
 export function settingsAreComplete(settings: AppSettings = getPublicSettings()): boolean {
   return Boolean(
     settings.bitbucketUrl.trim() &&
-      settings.workspace.trim() &&
+      settings.project.trim() &&
       settings.repository.trim() &&
       settings.promptPath.trim() &&
       settings.resultsDir.trim() &&
@@ -116,14 +96,14 @@ export function settingsAreComplete(settings: AppSettings = getPublicSettings())
 export function saveSettings(input: SettingsInput): AppSettings {
   const parsed = parseBitbucketRepoUrl(input.bitbucketUrl);
   const bitbucketUrl = parsed.bitbucketUrl;
-  const workspace = (parsed.workspace || input.workspace).trim();
-  const repository = (parsed.repository || input.repository).trim();
+  const project = (input.project || parsed.project || "").trim();
+  const repository = (input.repository || parsed.repository || "").trim();
   const promptPath = input.promptPath.trim();
   const resultsDir = input.resultsDir.trim();
   const writeMode = input.writeMode;
   const token = input.token.trim();
 
-  if (!bitbucketUrl || !workspace || !repository || !promptPath || !resultsDir || !writeMode) {
+  if (!bitbucketUrl || !project || !repository || !promptPath || !resultsDir || !writeMode) {
     throw new Error("All settings fields are required");
   }
   if (writeMode !== "bitbucket" && writeMode !== "local") {
@@ -146,7 +126,7 @@ export function saveSettings(input: SettingsInput): AppSettings {
   const prev = readStored();
   writeStored({
     bitbucketUrl,
-    workspace,
+    project,
     repository,
     promptPath,
     resultsDir,
@@ -171,7 +151,7 @@ export function saveAutomation(input: AutomationSettings): AppSettings {
 }
 
 export function getAuthContext(): {
-  workspace: string;
+  project: string;
   repository: string;
   token: string;
   bitbucketUrl: string;
@@ -189,7 +169,7 @@ export function getAuthContext(): {
     throw new Error("Stored token is missing. Re-enter the Repository Access Token.");
   }
   return {
-    workspace: settings.workspace,
+    project: settings.project,
     repository: settings.repository,
     token,
     bitbucketUrl: settings.bitbucketUrl,

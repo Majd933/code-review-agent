@@ -15,7 +15,7 @@ interface AppState {
   settings: AppSettings;
   draft: {
     bitbucketUrl: string;
-    workspace: string;
+    project: string;
     repository: string;
     token: string;
     promptPath: string;
@@ -49,7 +49,7 @@ interface AppState {
 
 const emptySettings: AppSettings = {
   bitbucketUrl: "",
-  workspace: "",
+  project: "",
   repository: "",
   promptPath: "",
   resultsDir: "",
@@ -65,7 +65,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   settings: emptySettings,
   draft: {
     bitbucketUrl: "",
-    workspace: "",
+    project: "",
     repository: "",
     token: "",
     promptPath: "",
@@ -93,7 +93,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       settings,
       draft: {
         bitbucketUrl: settings.bitbucketUrl,
-        workspace: settings.workspace,
+        project: settings.project,
         repository: settings.repository,
         token: "",
         promptPath: settings.promptPath,
@@ -107,7 +107,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({
       draft: {
         bitbucketUrl: settings.bitbucketUrl,
-        workspace: settings.workspace,
+        project: settings.project,
         repository: settings.repository,
         token: "",
         promptPath: settings.promptPath,
@@ -130,7 +130,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 export function settingsComplete(settings: AppSettings): boolean {
   return Boolean(
     settings.bitbucketUrl &&
-      settings.workspace &&
+      settings.project &&
       settings.repository &&
       settings.promptPath &&
       settings.resultsDir &&

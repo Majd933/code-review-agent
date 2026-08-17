@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAppStore } from "@/store/app-store";
+import { formatBitbucketRepoPageUrl, parseBitbucketRepoUrl } from "../../electron/main/bitbucket-url";
 import type { WriteMode } from "../../electron/main/types";
 import { cn } from "@/lib/utils";
 
@@ -40,7 +41,7 @@ export function SettingsTab() {
   async function save() {
     if (
       !draft.bitbucketUrl.trim() ||
-      !draft.workspace.trim() ||
+      !draft.project.trim() ||
       !draft.repository.trim() ||
       !draft.promptPath.trim() ||
       !draft.resultsDir.trim() ||
@@ -59,7 +60,7 @@ export function SettingsTab() {
     try {
       const result = await window.api.saveSettings({
         bitbucketUrl: draft.bitbucketUrl.trim(),
-        workspace: draft.workspace.trim(),
+        project: draft.project.trim(),
         repository: draft.repository.trim(),
         token: draft.token,
         promptPath: draft.promptPath.trim(),
@@ -93,43 +94,44 @@ export function SettingsTab() {
               value={draft.bitbucketUrl}
               onChange={(e) => {
                 const value = e.target.value;
-                let workspace = draft.workspace;
-                let repository = draft.repository;
-                try {
-                  const url = new URL(value.includes("://") ? value : `https://${value}`);
-                  const parts = url.pathname.split("/").filter(Boolean);
-                  if (parts.length >= 2) {
-                    workspace = parts[0];
-                    repository = parts[1].replace(/\.git$/i, "");
-                  }
-                } catch {
-                  // keep typed workspace/repo when the URL is incomplete
-                }
+                const parsed = parseBitbucketRepoUrl(value);
                 useAppStore.setState({
-                  draft: { ...draft, bitbucketUrl: value, workspace, repository },
+                  draft: {
+                    ...draft,
+                    bitbucketUrl: value,
+                    project: parsed.project || draft.project,
+                    repository: parsed.repository || draft.repository,
+                  },
                 });
               }}
-              placeholder="https://bitbucket.org/workspace/repo"
+              placeholder="https://bitbucket.org"
               spellCheck={false}
             />
           </Field>
-          <div className="form-grid-2">
-            <Field label="Workspace" icon={Building2}>
-              <Input
-                value={draft.workspace}
-                onChange={(e) => setDraftField("workspace", e.target.value)}
-                placeholder="my-workspace"
-                spellCheck={false}
-              />
-            </Field>
-            <Field label="Repository" icon={FolderGit2}>
-              <Input
-                value={draft.repository}
-                onChange={(e) => setDraftField("repository", e.target.value)}
-                placeholder="my-repo"
-                spellCheck={false}
-              />
-            </Field>
+          <div className="space-y-2.5">
+            <div className="form-grid-2">
+              <Field label="Project" icon={Building2}>
+                <Input
+                  value={draft.project}
+                  onChange={(e) => setDraftField("project", e.target.value)}
+                  placeholder="acme-workspace"
+                  spellCheck={false}
+                />
+              </Field>
+              <Field label="Repository" icon={FolderGit2}>
+                <Input
+                  value={draft.repository}
+                  onChange={(e) => setDraftField("repository", e.target.value)}
+                  placeholder="payments-api"
+                  spellCheck={false}
+                />
+              </Field>
+            </div>
+            <RepoUrlPreview
+              bitbucketUrl={draft.bitbucketUrl}
+              project={draft.project}
+              repository={draft.repository}
+            />
           </div>
           <Field
             icon={KeyRound}
@@ -264,6 +266,31 @@ export function SettingsTab() {
           Token is stored in OS secure storage.
         </p>
       </div>
+    </div>
+  );
+}
+
+function RepoUrlPreview({
+  bitbucketUrl,
+  project,
+  repository,
+}: {
+  bitbucketUrl: string;
+  project: string;
+  repository: string;
+}) {
+  const url = formatBitbucketRepoPageUrl(bitbucketUrl, project, repository);
+  const complete = Boolean(bitbucketUrl.trim() && project.trim() && repository.trim());
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-soft)] px-3.5 py-3">
+      <div className="text-xs font-semibold text-[var(--text)]">Repository URL</div>
+      <p className="mt-1 font-mono text-xs leading-relaxed break-all text-[var(--accent)]">{url}</p>
+      {!complete ? (
+        <p className="mt-1.5 text-xs text-[var(--muted)]">
+          Built from Bitbucket URL, project, and repository. Example:
+          https://bitbucket.org/projects/acme-workspace/repos/payments-api
+        </p>
+      ) : null}
     </div>
   );
 }

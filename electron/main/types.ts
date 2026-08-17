@@ -10,7 +10,7 @@ export const MAX_AUTO_REFRESH_MINUTES = 180;
 
 export interface AppSettings {
   bitbucketUrl: string;
-  workspace: string;
+  project: string;
   repository: string;
   promptPath: string;
   resultsDir: string;
@@ -23,7 +23,7 @@ export interface AppSettings {
 
 export interface SettingsInput {
   bitbucketUrl: string;
-  workspace: string;
+  project: string;
   repository: string;
   token: string;
   promptPath: string;

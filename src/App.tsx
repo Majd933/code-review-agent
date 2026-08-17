@@ -114,7 +114,7 @@ export default function App() {
     settings.autoRefresh,
     settings.autoRefreshMinutes,
     settings.bitbucketUrl,
-    settings.workspace,
+    settings.project,
     settings.repository,
     settings.hasToken,
     settings.writeMode,
